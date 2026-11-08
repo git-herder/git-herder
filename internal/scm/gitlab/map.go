@@ -3,6 +3,7 @@ package gitlab
 
 import (
 	"encoding/json"
+	"strconv"
 
 	"github.com/Snowbridge/git-herder/internal/scm/card"
 )
@@ -30,7 +31,7 @@ func MapProject(raw json.RawMessage) (card.Card, error) {
 		labels = []string{}
 	}
 	return card.Card{
-		UID:         p.ID,
+		UID:         strconv.FormatInt(int64(p.ID), 10),
 		Name:        p.Name,
 		Path:        pathFromNamespace(p.PathWithNamespace),
 		Description: desc,

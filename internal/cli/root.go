@@ -12,6 +12,7 @@ import (
 	"github.com/Snowbridge/git-herder/internal/appexit"
 	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/profilestore"
+	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/version"
 	profilecmd "github.com/Snowbridge/git-herder/internal/cli/profile"
 )
@@ -20,7 +21,7 @@ import (
 type Runtime struct {
 	Trace   *logging.Trace
 	Store   *profilestore.Store
-	Globals ResolvedGlobals
+	Globals resolved.Globals
 }
 
 // ActiveRuntime устанавливается в PersistentPreRun для команд.
@@ -111,10 +112,6 @@ func bootstrapRun(cmd *cobra.Command, store *profilestore.Store) error {
 	if err != nil {
 		return errExit1(err)
 	}
-	if err := ValidateUpstream(globals.Upstream); err != nil {
-		return errExit1(err)
-	}
-
 	trace, err := logging.New(logging.Options{Debug: globals.Debug, Verbose: globals.Verbose})
 	if err != nil {
 		return err

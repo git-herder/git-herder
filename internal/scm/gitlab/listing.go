@@ -10,13 +10,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
+	"github.com/Snowbridge/git-herder/internal/scm/conn"
 	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
 )
 
 // NewListingBuilder создаёт билдер GitLab listing.
-func NewListingBuilder(transport *scmhttp.Transport, cfg scm.ConnConfig) scm.ListingBuilder {
+func NewListingBuilder(transport *scmhttp.Transport, cfg conn.Config) scm.ListingBuilder {
 	perPage := cfg.PerPage
 	if perPage <= 0 {
 		perPage = scm.DefaultPerPage
@@ -30,7 +32,7 @@ func NewListingBuilder(transport *scmhttp.Transport, cfg scm.ConnConfig) scm.Lis
 
 type listingBuilder struct {
 	transport *scmhttp.Transport
-	cfg       scm.ConnConfig
+	cfg       conn.Config
 	perPage   int
 	names     []string
 	paths     []string
@@ -59,13 +61,9 @@ func (b *listingBuilder) SetAttribute(name, value string) scm.ListingBuilder {
 }
 
 func (b *listingBuilder) Build() (scm.Listing, error) {
-	base, err := scmhttp.BaseURL(b.cfg.Host, "gitlab")
-	if err != nil {
-		return nil, err
-	}
 	return &listing{
 		transport: b.transport,
-		baseURL:   base,
+		baseURL:   b.cfg.Host,
 		perPage:   b.perPage,
 		cfg:       b.cfg,
 		tags:      append([]string(nil), b.tags...),
@@ -77,7 +75,7 @@ type listing struct {
 	transport *scmhttp.Transport
 	baseURL   string
 	perPage   int
-	cfg       scm.ConnConfig
+	cfg       conn.Config
 	tags      []string
 	attrs     []scm.NameValue
 
@@ -151,8 +149,7 @@ func (l *listing) listQuery(page int) url.Values {
 	qv := url.Values{}
 	qv.Set("page", strconv.Itoa(page))
 	qv.Set("per_page", strconv.Itoa(l.perPage))
-	scope := strings.ToLower(strings.TrimSpace(l.cfg.Scope))
-	if scope == "" || scope == "affiliated" {
+	if l.cfg.SelectionScope == resolved.SelectionScopeAffiliated {
 		qv.Set("membership", "true")
 	}
 	if !l.cfg.IncludeInactive {

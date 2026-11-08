@@ -5,24 +5,24 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Snowbridge/git-herder/internal/scm"
+	"github.com/Snowbridge/git-herder/internal/scm/conn"
 	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
 )
 
 func TestBuilderFluentAndBuildFailsOnTagOnly(t *testing.T) {
 	t.Parallel()
 	tr := scmhttp.NewTransport(http.DefaultClient, "")
-	b2 := NewListingBuilder(tr, scm.ConnConfig{Host: "github.com"})
+	b2 := NewListingBuilder(tr, conn.Config{Host: "https://api.github.com"})
 	_, err := b2.SetTag("only").Build()
 	if err != errEmptySearchQuery {
 		t.Fatalf("got %v", err)
 	}
-	b := NewListingBuilder(tr, scm.ConnConfig{Host: "github.com"})
+	b := NewListingBuilder(tr, conn.Config{Host: "https://api.github.com"})
 	if _, err = b.SetPath("p").SetName("n").SetAttribute("a", "b").Build(); err != nil {
 		t.Fatal(err)
 	}
@@ -67,9 +67,9 @@ func TestMapSearchItem(t *testing.T) {
 
 func TestListingPagesAndRateLimit(t *testing.T) {
 	t.Parallel()
-	var apiBase string
+	var base string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Link", fmt.Sprintf(`<%s/search/repositories?q=x&page=2>; rel="last"`, apiBase))
+		w.Header().Set("Link", fmt.Sprintf(`<%s/search/repositories?q=x&page=2>; rel="last"`, base))
 		w.Header().Set("X-Ratelimit-Limit", "5000")
 		w.Header().Set("X-Ratelimit-Used", "1")
 		w.Header().Set("X-Ratelimit-Reset", "1700000000")
@@ -77,11 +77,10 @@ func TestListingPagesAndRateLimit(t *testing.T) {
 		_, _ = w.Write([]byte(`{"total_count":1,"items":[{"full_name":"o/r","name":"r","topics":[]}]}`))
 	}))
 	defer srv.Close()
-	apiBase = srv.URL
+	base = srv.URL
 
-	client := &http.Client{Transport: rewriteToServer(srv)}
-	tr := scmhttp.NewTransport(client, "")
-	b := NewListingBuilder(tr, scm.ConnConfig{Host: "github.com", PerPage: 10})
+	tr := scmhttp.NewTransport(srv.Client(), "")
+	b := NewListingBuilder(tr, conn.Config{Host: srv.URL, PerPage: 10})
 	b = b.SetName("code2")
 	listing, err := b.Build()
 	if err != nil {
@@ -120,18 +119,3 @@ func TestMapSearchItemEmptyDesc(t *testing.T) {
 	}
 }
 
-func rewriteToServer(srv *httptest.Server) http.RoundTripper {
-	u, _ := url.Parse(srv.URL)
-	return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		req = req.Clone(req.Context())
-		req.URL.Scheme = u.Scheme
-		req.URL.Host = u.Host
-		return http.DefaultTransport.RoundTrip(req)
-	})
-}
-
-type roundTripperFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
-}

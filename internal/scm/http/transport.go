@@ -3,7 +3,6 @@ package http
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -71,23 +70,4 @@ func (t *Transport) Get(ctx context.Context, baseURL, path string, query url.Val
 		Header:     resp.Header.Clone(),
 		RequestURL: rawURL,
 	}, nil
-}
-
-// BaseURL возвращает корень REST API для host и upstream.
-func BaseURL(host, upstream string) (string, error) {
-	host = strings.TrimSpace(host)
-	if host == "" {
-		return "", fmt.Errorf("scm host is empty")
-	}
-	switch strings.ToLower(strings.TrimSpace(upstream)) {
-	case "github":
-		if strings.EqualFold(host, "github.com") {
-			return "https://api.github.com", nil
-		}
-		return "https://" + host + "/api", nil
-	case "gitlab":
-		return "https://" + host + "/api/v4", nil
-	default:
-		return "", fmt.Errorf("unknown upstream %q", upstream)
-	}
 }

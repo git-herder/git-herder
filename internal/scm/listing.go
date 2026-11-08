@@ -1,4 +1,4 @@
-// Пакет scm: фабрика SCM-клиентов и контракт перечисления репозиториев.
+// Пакет scm: контракт перечисления репозиториев SCM.
 package scm
 
 import (
@@ -15,16 +15,6 @@ const DefaultPerPage = 100
 type NameValue struct {
 	Name  string
 	Value string
-}
-
-// ConnConfig — подключение к SCM для list-запросов.
-type ConnConfig struct {
-	Upstream        string
-	Host            string
-	Token           string
-	PerPage         int
-	Scope           string // affiliated | all
-	IncludeInactive bool
 }
 
 // ListingCriteria — критерии, уже разобранные из argv/профиля.

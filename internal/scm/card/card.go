@@ -3,7 +3,7 @@ package card
 
 // Card — обобщённая запись репозитория после ответа list API (без enrichment).
 type Card struct {
-	UID         any // string (GitHub) или float64/json number (GitLab id)
+	UID         string
 	Name        string
 	Path        string
 	Description string

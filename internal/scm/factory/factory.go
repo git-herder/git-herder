@@ -4,15 +4,16 @@ package factory
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
+	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
+	"github.com/Snowbridge/git-herder/internal/scm/conn"
 	"github.com/Snowbridge/git-herder/internal/scm/github"
 	"github.com/Snowbridge/git-herder/internal/scm/gitlab"
 	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
 )
 
-// ClientFactory создаёт listing-адаптеры по ConnConfig и критериям.
+// ClientFactory создаёт listing-адаптеры по conn.Config и критериям.
 type ClientFactory struct {
 	transport *scmhttp.Transport
 }
@@ -29,16 +30,16 @@ func NewClientFactory(httpTransport *http.Transport) *ClientFactory {
 }
 
 // NewListing настраивает билдер выбранного upstream и возвращает ScmListing.
-func (f *ClientFactory) NewListing(cfg scm.ConnConfig, crit scm.ListingCriteria) (scm.Listing, error) {
+func (f *ClientFactory) NewListing(cfg conn.Config, crit scm.ListingCriteria) (scm.Listing, error) {
 	t := scmhttp.NewTransport(f.transport.Client(), cfg.Token)
 	var b scm.ListingBuilder
-	switch strings.ToLower(strings.TrimSpace(cfg.Upstream)) {
-	case "github":
+	switch cfg.Upstream {
+	case resolved.UpstreamGitHub:
 		b = github.NewListingBuilder(t, cfg)
-	case "gitlab":
+	case resolved.UpstreamGitLab:
 		b = gitlab.NewListingBuilder(t, cfg)
 	default:
-		return nil, fmt.Errorf("unsupported upstream %q", cfg.Upstream)
+		return nil, fmt.Errorf("unsupported upstream %c", cfg.Upstream)
 	}
 	for _, name := range crit.Names {
 		b = b.SetName(name)

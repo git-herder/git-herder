@@ -14,6 +14,7 @@ import (
 
 	"github.com/Snowbridge/git-herder/internal/scm"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
+	"github.com/Snowbridge/git-herder/internal/scm/conn"
 	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
 )
 
@@ -25,7 +26,7 @@ var (
 )
 
 // NewListingBuilder создаёт билдер GitHub listing.
-func NewListingBuilder(transport *scmhttp.Transport, cfg scm.ConnConfig) scm.ListingBuilder {
+func NewListingBuilder(transport *scmhttp.Transport, cfg conn.Config) scm.ListingBuilder {
 	perPage := cfg.PerPage
 	if perPage <= 0 {
 		perPage = scm.DefaultPerPage
@@ -39,7 +40,7 @@ func NewListingBuilder(transport *scmhttp.Transport, cfg scm.ConnConfig) scm.Lis
 
 type listingBuilder struct {
 	transport *scmhttp.Transport
-	cfg       scm.ConnConfig
+	cfg       conn.Config
 	perPage   int
 	names     []string
 	paths     []string
@@ -72,13 +73,9 @@ func (b *listingBuilder) Build() (scm.Listing, error) {
 	if err != nil {
 		return nil, err
 	}
-	base, err := scmhttp.BaseURL(b.cfg.Host, "github")
-	if err != nil {
-		return nil, err
-	}
 	return &listing{
 		transport: b.transport,
-		baseURL:   base,
+		baseURL:   b.cfg.Host,
 		perPage:   b.perPage,
 		q:         q,
 	}, nil

@@ -4,19 +4,29 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/scm"
+	"github.com/Snowbridge/git-herder/internal/resolved"
+	"github.com/Snowbridge/git-herder/internal/scm/conn"
 	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
 )
+
+func TestBuilderAccumulatesClientSideCriteria(t *testing.T) {
+	t.Parallel()
+	tr := scmhttp.NewTransport(http.DefaultClient, "")
+	b := NewListingBuilder(tr, conn.Config{Host: "https://gitlab.com/api/v4"})
+	b.SetName("n").SetPath("p").SetTag("t").SetAttribute("k", "v")
+	if _, err := b.Build(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestMapProject(t *testing.T) {
 	t.Parallel()
 	raw := []byte(`{"id":42,"name":"spec","path_with_namespace":"g/h/spec","topics":["t"]}`)
 	c, err := MapProject(raw)
-	if err != nil || c.UID != float64(42) || c.Path != "g/h" {
+	if err != nil || c.UID != "42" || c.Path != "g/h" {
 		t.Fatalf("%+v err=%v", c, err)
 	}
 }
@@ -32,20 +42,11 @@ func TestListingQueryAndPages(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	u, _ := url.Parse(srv.URL)
-	client := &http.Client{
-		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			req = req.Clone(req.Context())
-			req.URL.Scheme = u.Scheme
-			req.URL.Host = u.Host
-			return http.DefaultTransport.RoundTrip(req)
-		}),
-	}
-	tr := scmhttp.NewTransport(client, "x")
-	cfg := scm.ConnConfig{
-		Host:    "gitlab.com",
-		Scope:   "affiliated",
-		PerPage: 20,
+	tr := scmhttp.NewTransport(srv.Client(), "x")
+	cfg := conn.Config{
+		Host:           srv.URL,
+		SelectionScope: resolved.SelectionScopeAffiliated,
+		PerPage:        20,
 	}
 	b := NewListingBuilder(tr, cfg)
 	b = b.SetTag("foo").SetTag("bar").SetAttribute("k", "v")
@@ -93,16 +94,13 @@ func TestListQueryScopeAllIncludeInactive(t *testing.T) {
 	t.Parallel()
 	l := &listing{
 		perPage: 10,
-		cfg:     scm.ConnConfig{Scope: "all", IncludeInactive: true},
+		cfg: conn.Config{
+			SelectionScope:  resolved.SelectionScopeAll,
+			IncludeInactive: true,
+		},
 	}
 	q := l.listQuery(1)
 	if q.Get("membership") != "" || q.Get("active") != "" {
 		t.Fatalf("%v", q)
 	}
-}
-
-type roundTripperFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
 }

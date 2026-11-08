@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/Snowbridge/git-herder/internal/resolved"
 )
 
 func TestResolveUpstreamHostDefault(t *testing.T) {
@@ -23,7 +25,7 @@ func TestResolveUpstreamHostDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.Host != "gitlab.com" {
+	if g.Host != resolved.DefaultHost(resolved.UpstreamGitLab) {
 		t.Fatalf("host=%q", g.Host)
 	}
 }
@@ -58,7 +60,7 @@ func TestResolveUpstreamFromCLI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.Host != "github.com" {
+	if g.Host != resolved.DefaultHost(resolved.UpstreamGitHub) {
 		t.Fatalf("host=%q", g.Host)
 	}
 }

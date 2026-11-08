@@ -9,33 +9,20 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/Snowbridge/git-herder/internal/resolved"
 )
 
-// ResolvedGlobals — итог резолва глобальных флагов для текущей команды.
-type ResolvedGlobals struct {
-	Verbose       bool
-	Debug         bool
-	RetriesNumber int
-	OnError       string
-	Workspace     string
-	Upstream      string
-	Host          string
-	Token         string
-	ProfileName   string
-}
-
 // BuiltinDefaults встроенные значения из cli/index.md.
-func BuiltinDefaults() ResolvedGlobals {
+func BuiltinDefaults() resolved.Globals {
 	wd, _ := os.Getwd()
-	return ResolvedGlobals{
-		RetriesNumber: 3,
-		OnError:       "continue",
-		Workspace:     wd,
-	}
+	d := resolved.BuiltinDefaults()
+	d.Workspace = wd
+	return d
 }
 
 // ResolveGlobals вычисляет итоговые значения; profileDoc nil — профиль не загружен.
-func ResolveGlobals(cmd *cobra.Command, profileDoc map[string]any, leafCommandName string) (ResolvedGlobals, error) {
+func ResolveGlobals(cmd *cobra.Command, profileDoc map[string]any, leafCommandName string) (resolved.Globals, error) {
 	out := BuiltinDefaults()
 	flags := cmd.Root().PersistentFlags()
 
@@ -61,7 +48,11 @@ func ResolveGlobals(cmd *cobra.Command, profileDoc map[string]any, leafCommandNa
 		return out, err
 	}
 	if onError != "" {
-		out.OnError = onError
+		parsed, err := resolved.ParseOnError(onError)
+		if err != nil {
+			return out, err
+		}
+		out.OnError = parsed
 	}
 
 	ws, err := resolveStringFlag(flags, "workspace", cmd, profileDoc, leafCommandName)
@@ -80,21 +71,20 @@ func ResolveGlobals(cmd *cobra.Command, profileDoc map[string]any, leafCommandNa
 	if err != nil {
 		return out, err
 	}
-	out.Upstream = upstream
+	if strings.TrimSpace(upstream) != "" {
+		out.Upstream, err = resolved.ParseUpstream(upstream)
+		if err != nil {
+			return out, err
+		}
+	}
 
 	host, err := resolveStringFlag(flags, "host", cmd, profileDoc, leafCommandName)
 	if err != nil {
 		return out, err
 	}
-	out.Host = host
-
-	if out.Host == "" && out.Upstream != "" {
-		switch strings.ToLower(out.Upstream) {
-		case "github":
-			out.Host = "github.com"
-		case "gitlab":
-			out.Host = "gitlab.com"
-		}
+	out.Host = strings.TrimSpace(host)
+	if out.Host == "" && out.Upstream != resolved.UpstreamUnset {
+		out.Host = resolved.DefaultHost(out.Upstream)
 	}
 
 	token, err := resolveStringFlag(flags, "token", cmd, profileDoc, leafCommandName)
@@ -155,13 +145,11 @@ func lookupProfileValue(doc map[string]any, cmd *cobra.Command, leaf, key string
 	if doc == nil {
 		return nil, false
 	}
-	// leaf block
 	if block, ok := doc[leaf].(map[string]any); ok {
 		if v, ok := block[key]; ok {
 			return v, true
 		}
 	}
-	// parents
 	for p := cmd.Parent(); p != nil; p = p.Parent() {
 		if p.Name() == "" {
 			continue
@@ -209,17 +197,4 @@ func IsProfileTree(cmd *cobra.Command) bool {
 		}
 	}
 	return false
-}
-
-// ValidateUpstream возвращает ошибку, если значение недопустимо.
-func ValidateUpstream(upstream string) error {
-	if upstream == "" {
-		return nil
-	}
-	switch strings.ToLower(upstream) {
-	case "github", "gitlab":
-		return nil
-	default:
-		return fmt.Errorf("invalid --upstream %q", upstream)
-	}
 }
