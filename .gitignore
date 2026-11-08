@@ -1,0 +1,5 @@
+# Артефакты сборки и тестов
+/githerd.exe
+/githerd
+cover.out
+coverage.out

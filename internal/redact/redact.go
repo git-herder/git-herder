@@ -1,0 +1,89 @@
+// Пакет redact маскирует секреты в строках и структурах данных (спека platform/logging.md).
+package redact
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+const mask = "***"
+
+var (
+	tokenFlag = regexp.MustCompile(`(?i)(--token(?:=[^\s]+)?|-t(?:=[^\s]+)?\s+\S+|-t[^\s=]\S*)`)
+	secretKeys = map[string]struct{}{
+		"token":          {},
+		"password":       {},
+		"private_token":  {},
+		"pat":            {},
+		"authorization":  {},
+		"private-key":    {},
+		"private_key":    {},
+	}
+)
+
+// CommandLine маскирует флаг --token и короткую форму -t в командной строке.
+func CommandLine(argv string) string {
+	out := tokenFlag.ReplaceAllString(argv, "--token="+mask)
+	out = regexp.MustCompile(`(?i)-t\s+\S+`).ReplaceAllString(out, "-t "+mask)
+	return out
+}
+
+// String заменяет известные фрагменты Authorization и query token=.
+func String(s string) string {
+	if s == "" {
+		return s
+	}
+	out := s
+	out = regexp.MustCompile(`(?i)(Authorization[=:]\s*)(\S+)`).ReplaceAllString(out, `${1}`+mask)
+	out = regexp.MustCompile(`(?i)([?&](?:token|password|private_token)=)[^&\s]+`).ReplaceAllString(out, `${1}`+mask)
+	return out
+}
+
+// MapYAML рекурсивно маскирует чувствительные ключи в дереве YAML (map/slice).
+func MapYAML(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, val := range x {
+			if isSecretKey(k) {
+				out[k] = mask
+				continue
+			}
+			out[k] = MapYAML(val)
+		}
+		return out
+	case map[any]any:
+		out := make(map[string]any, len(x))
+		for k, val := range x {
+			ks, ok := k.(string)
+			if !ok {
+				out[fmtKey(k)] = MapYAML(val)
+				continue
+			}
+			if isSecretKey(ks) {
+				out[ks] = mask
+				continue
+			}
+			out[ks] = MapYAML(val)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, item := range x {
+			out[i] = MapYAML(item)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+func isSecretKey(k string) bool {
+	_, ok := secretKeys[strings.ToLower(k)]
+	return ok
+}
+
+func fmtKey(k any) string {
+	return strings.TrimSpace(strings.ToLower(strings.ReplaceAll(fmt.Sprint(k), " ", "")))
+}
