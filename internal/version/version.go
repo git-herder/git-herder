@@ -2,4 +2,4 @@
 package version
 
 // Semver — версия продукта без префикса «v» (спека cli/index.md).
-const Semver = "0.0.0"
+const Semver = "1.0.0"
