@@ -104,14 +104,16 @@ func enricherIDs(jobs []scm.Enricher) string {
 
 func (f *ClientFactory) scopedTransport(cfg conn.Config) *scmhttp.Transport {
 	t := scmhttp.NewTransport(f.transport.Client(), cfg.Token)
-	if cfg.Upstream != resolved.UpstreamGitHub {
-		return t
+	switch cfg.Upstream {
+	case resolved.UpstreamGitHub:
+		policy := scmhttp.LimitAwait
+		if cfg.OnLimit == "abort" {
+			policy = scmhttp.LimitAbort
+		}
+		t.SetQuota(scmhttp.ParseGitHubQuota, policy, cfg.OnQuotaWait)
+	case resolved.UpstreamGitLab:
+		t.SetQuota(scmhttp.ParseGitLabQuota, scmhttp.LimitAwait, cfg.OnQuotaWait)
 	}
-	policy := scmhttp.LimitAwait
-	if cfg.OnLimit == "abort" {
-		policy = scmhttp.LimitAbort
-	}
-	t.SetQuota(scmhttp.ParseGitHubQuota, policy, cfg.OnQuotaWait)
 	return t
 }
 

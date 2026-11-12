@@ -49,3 +49,28 @@ func ParseGitHubQuota(h http.Header) Quota {
 	}
 	return q
 }
+
+// ParseGitLabQuota читает заголовки GitLab. Момент сброса — epoch как в заголовке.
+func ParseGitLabQuota(h http.Header) Quota {
+	q := Quota{}
+	if h == nil {
+		return q
+	}
+	if n, err := strconv.Atoi(h.Get("Ratelimit-Limit")); err == nil {
+		q.Limit = &n
+		q.Set = true
+	}
+	if n, err := strconv.Atoi(h.Get("Ratelimit-Remaining")); err == nil {
+		q.Remaining = &n
+		q.Set = true
+	}
+	if n, err := strconv.Atoi(h.Get("Ratelimit-Observed")); err == nil {
+		q.Used = &n
+		q.Set = true
+	}
+	if sec, err := strconv.ParseInt(h.Get("Ratelimit-Reset"), 10, 64); err == nil {
+		q.Reset = time.Unix(sec, 0).UTC()
+		q.Set = true
+	}
+	return q
+}

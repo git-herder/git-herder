@@ -46,6 +46,9 @@ type searchListing struct {
 	query      url.Values
 	pagesReady bool
 	totalPages int
+
+	limit, used *int
+	reset       *time.Time
 }
 
 func (l *searchListing) PagesCount(ctx context.Context) (n int, err error) {
@@ -79,11 +82,11 @@ func (l *searchListing) Repositories(ctx context.Context, page int) (cards []car
 	return decodeProjects(resp.Body)
 }
 
-func (l *searchListing) RateLimit() *int { return nil }
+func (l *searchListing) RateLimit() *int { return l.limit }
 
-func (l *searchListing) RateLimitReset() *time.Time { return nil }
+func (l *searchListing) RateLimitReset() *time.Time { return l.reset }
 
-func (l *searchListing) RateLimitUsed() *int { return nil }
+func (l *searchListing) RateLimitUsed() *int { return l.used }
 
 func (l *searchListing) ensure(ctx context.Context) error {
 	if l.pagesReady {
@@ -114,5 +117,20 @@ func (l *searchListing) fetch(ctx context.Context, page int) (scmhttp.Response, 
 	}
 	qv.Set("page", strconv.Itoa(page))
 	qv.Set("per_page", strconv.Itoa(l.perPage))
-	return l.transport.Get(ctx, l.baseURL, apiV4+"/search", qv)
+	resp, err := l.transport.Get(ctx, l.baseURL, apiV4+"/search", qv)
+	if err != nil {
+		return resp, err
+	}
+	q := scmhttp.ParseGitLabQuota(resp.Header)
+	if q.Limit != nil {
+		l.limit = q.Limit
+	}
+	if q.Used != nil {
+		l.used = q.Used
+	}
+	if !q.Reset.IsZero() {
+		t := q.Reset
+		l.reset = &t
+	}
+	return resp, nil
 }

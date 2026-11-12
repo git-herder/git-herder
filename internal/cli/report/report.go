@@ -124,7 +124,11 @@ func run(cmd *cobra.Command, ui *console.UI) (err error) {
 	cfg.SelectionScope = settings.Criteria.Scope
 	cfg.OnLimit = settings.Criteria.OnLimit
 	cfg.OnQuotaWait = func(until time.Time) {
-		ui.WarningStderr("GitHub API rate limit reached; waiting until " + until.UTC().Format(time.RFC3339))
+		name := "GitHub"
+		if g.Upstream == resolved.UpstreamGitLab {
+			name = "GitLab"
+		}
+		ui.WarningStderr(name + " API rate limit reached; waiting until " + until.UTC().Format(time.RFC3339))
 	}
 	cards, err := selection.Run(context.Background(), factory.NewClientFactory(nil), cfg, settings.Criteria, selection.Options{
 		Retries: g.RetriesNumber,

@@ -87,6 +87,9 @@ type listing struct {
 
 	pagesReady bool
 	totalPages int
+
+	limit, used *int
+	reset       *time.Time
 }
 
 func (l *listing) PagesCount(ctx context.Context) (n int, err error) {
@@ -120,11 +123,25 @@ func (l *listing) Repositories(ctx context.Context, page int) (cards []card.Card
 	return decodeProjects(resp.Body)
 }
 
-func (l *listing) RateLimit() *int { return nil }
+func (l *listing) RateLimit() *int { return l.limit }
 
-func (l *listing) RateLimitReset() *time.Time { return nil }
+func (l *listing) RateLimitReset() *time.Time { return l.reset }
 
-func (l *listing) RateLimitUsed() *int { return nil }
+func (l *listing) RateLimitUsed() *int { return l.used }
+
+func (l *listing) rememberQuota(h map[string][]string) {
+	q := scmhttp.ParseGitLabQuota(h)
+	if q.Limit != nil {
+		l.limit = q.Limit
+	}
+	if q.Used != nil {
+		l.used = q.Used
+	}
+	if !q.Reset.IsZero() {
+		t := q.Reset
+		l.reset = &t
+	}
+}
 
 func (l *listing) ensurePages(ctx context.Context) error {
 	if l.pagesReady {
@@ -178,7 +195,12 @@ func (l *listing) listQuery(page int) url.Values {
 }
 
 func (l *listing) fetchPage(ctx context.Context, page int) (scmhttp.Response, error) {
-	return l.transport.Get(ctx, l.baseURL, apiV4+"/projects", l.listQuery(page))
+	resp, err := l.transport.Get(ctx, l.baseURL, apiV4+"/projects", l.listQuery(page))
+	if err != nil {
+		return resp, err
+	}
+	l.rememberQuota(resp.Header)
+	return resp, nil
 }
 
 func decodeProjects(body []byte) ([]card.Card, error) {

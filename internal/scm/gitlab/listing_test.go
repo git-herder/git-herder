@@ -102,6 +102,36 @@ func TestPagesCountHTTPError(t *testing.T) {
 	}
 }
 
+func TestListingRemembersRateLimit(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Ratelimit-Limit", "2000")
+		w.Header().Set("Ratelimit-Observed", "10")
+		w.Header().Set("Ratelimit-Remaining", "1990")
+		w.Header().Set("Ratelimit-Reset", "1700000000")
+		w.Header().Set("X-Total-Pages", "1")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer srv.Close()
+	tr := scmhttp.NewTransport(srv.Client(), "x")
+	list, err := NewListingBuilder(tr, conn.Config{Host: srv.URL}).Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := list.PagesCount(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if list.RateLimit() == nil || *list.RateLimit() != 2000 {
+		t.Fatalf("limit %v", list.RateLimit())
+	}
+	if list.RateLimitUsed() == nil || *list.RateLimitUsed() != 10 {
+		t.Fatalf("used %v", list.RateLimitUsed())
+	}
+	if list.RateLimitReset() == nil || list.RateLimitReset().Unix() != 1700000000 {
+		t.Fatalf("reset %v", list.RateLimitReset())
+	}
+}
+
 func TestParseTotalPages(t *testing.T) {
 	t.Parallel()
 	if parseTotalPages("3") != 3 || parseTotalPages("") != 0 || parseTotalPages("x") != 0 {
