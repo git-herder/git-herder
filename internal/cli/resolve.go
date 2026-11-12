@@ -3,6 +3,7 @@ package cli
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,6 +102,7 @@ func ResolveGlobals(cmd *cobra.Command, profileDoc map[string]any, leafCommandNa
 	if out.Host == "" && out.Upstream != resolved.UpstreamUnset {
 		out.Host = resolved.DefaultHost(out.Upstream)
 	}
+	out.Host = withDefaultScheme(out.Host)
 
 	token, err := resolveStringFlag(flags, "token", cmd, profileDoc, leafCommandName)
 	if err != nil {
@@ -109,6 +111,17 @@ func ResolveGlobals(cmd *cobra.Command, profileDoc map[string]any, leafCommandNa
 	out.Token = token
 
 	return out, nil
+}
+
+// withDefaultScheme дописывает https://, если в host нет схемы.
+func withDefaultScheme(host string) string {
+	if host == "" {
+		return ""
+	}
+	if u, err := url.Parse(host); err == nil && u.Scheme != "" {
+		return host
+	}
+	return "https://" + host
 }
 
 func resolveBoolFlag(flags *pflag.FlagSet, name string, cmd *cobra.Command, doc map[string]any, leaf string) (bool, error) {

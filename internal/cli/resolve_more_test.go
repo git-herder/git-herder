@@ -30,6 +30,42 @@ func TestResolveUpstreamHostDefault(t *testing.T) {
 	}
 }
 
+func TestResolveHostScheme(t *testing.T) {
+	bare := resolveHostFromProfile(t, "api.github.com")
+	if bare != "https://api.github.com" {
+		t.Fatalf("bare host=%q", bare)
+	}
+	httpsHost := resolveHostFromProfile(t, "https://gitlab.example/api/v4")
+	if httpsHost != "https://gitlab.example/api/v4" {
+		t.Fatalf("https host=%q", httpsHost)
+	}
+	httpHost := resolveHostFromProfile(t, "http://gitlab.example")
+	if httpHost != "http://gitlab.example" {
+		t.Fatalf("http host=%q", httpHost)
+	}
+}
+
+func resolveHostFromProfile(t *testing.T, host string) string {
+	t.Helper()
+	root := &cobra.Command{Use: "root"}
+	root.PersistentFlags().Bool("verbose", false, "")
+	root.PersistentFlags().Bool("debug", false, "")
+	root.PersistentFlags().Int("retries-number", 3, "")
+	root.PersistentFlags().String("on-error", "continue", "")
+	root.PersistentFlags().String("workspace", "/w", "")
+	root.PersistentFlags().String("upstream", "", "")
+	root.PersistentFlags().String("host", "", "")
+	root.PersistentFlags().String("token", "", "")
+	cmd := &cobra.Command{Use: "report"}
+	root.AddCommand(cmd)
+	doc := map[string]any{"root": map[string]any{"upstream": "github", "host": host}}
+	g, err := ResolveGlobals(cmd, doc, "report")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g.Host
+}
+
 func TestResolveBoolStringTrue(t *testing.T) {
 	root := &cobra.Command{Use: "root"}
 	root.PersistentFlags().Bool("debug", false, "")
