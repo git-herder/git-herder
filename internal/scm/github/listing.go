@@ -23,7 +23,7 @@ import (
 var qpQnPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // matchAllSearchQ — q, когда server-side фрагментов нет (listing § сборка q).
-const matchAllSearchQ = "stars:>=0"
+const matchAllSearchQ = "involves:@me"
 
 var errInvalidQPQN = errors.New("github qp/qn value contains disallowed characters")
 

@@ -2,6 +2,7 @@
 package logging
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -144,12 +145,23 @@ func (h *ndjsonHandler) Handle(_ context.Context, r slog.Record) error {
 	if r.Level != slog.LevelError {
 		delete(fields, "stackTrace")
 	}
-	b, err := json.Marshal(fields)
+	b, err := marshalLog(fields)
 	if err != nil {
 		return err
 	}
-	_, err = h.w.Write(append(b, '\n'))
+	_, err = h.w.Write(b)
 	return err
+}
+
+// marshalLog пишет JSON без HTML-экранирования &, <, >.
+func marshalLog(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func (h *ndjsonHandler) WithAttrs(attrs []slog.Attr) slog.Handler {

@@ -22,6 +22,22 @@ func TestHandlersWithGroupAndDebug(t *testing.T) {
 	_ = tsv.Handle(context.Background(), rec)
 }
 
+func TestNDJSONDoesNotHTMLEscape(t *testing.T) {
+	var buf bytes.Buffer
+	h := &ndjsonHandler{w: &buf, debug: true}
+	rec := slog.NewRecord(time.Now(), slog.LevelDebug, "url=https://api.github.com/search?q=involves:@me&page=1", 0)
+	if err := h.Handle(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if strings.Contains(got, `\u0026`) || strings.Contains(got, `\u003e`) || strings.Contains(got, `\u003c`) {
+		t.Fatalf("escaped: %s", got)
+	}
+	if !strings.Contains(got, "involves:@me&page=1") {
+		t.Fatalf("message: %s", got)
+	}
+}
+
 func TestTSVTruncatesLongMessage(t *testing.T) {
 	var buf bytes.Buffer
 	h := &tsvHandler{w: &buf, debug: true}

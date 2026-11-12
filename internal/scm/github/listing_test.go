@@ -68,6 +68,32 @@ func TestMapSearchItem(t *testing.T) {
 	}
 }
 
+func TestMatchAllQueryIsInvolvesMe(t *testing.T) {
+	t.Parallel()
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"total_count":0,"items":[]}`))
+	}))
+	defer srv.Close()
+
+	tr := scmhttp.NewTransport(srv.Client(), "tok")
+	list, err := NewListingBuilder(tr, conn.Config{Host: srv.URL, PerPage: 100}).Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := list.PagesCount(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "q=involves:@me") || strings.Contains(got, "stars:") {
+		t.Fatalf("query %q", got)
+	}
+	if strings.Contains(got, `\u`) || strings.Contains(got, "%3E") || strings.Contains(got, "%40") {
+		t.Fatalf("transformed query %q", got)
+	}
+}
+
 func TestSearchQueryIsNotPercentEncoded(t *testing.T) {
 	t.Parallel()
 	var got string
