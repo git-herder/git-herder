@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -225,7 +226,7 @@ func (l *listing) walkNext(ctx context.Context, first scmhttp.Response) error {
 	next := linkURL(first.Header.Get("Link"), "next")
 	for next != "" && page < 10000 {
 		page++
-		resp, err := l.transport.GetURL(ctx, next)
+		resp, err := l.transport.GetURL(ctx, literalSearchURL(next))
 		if err != nil {
 			return err
 		}
@@ -258,7 +259,8 @@ func (l *listing) fetchPage(ctx context.Context, page int) (scmhttp.Response, er
 	}
 	qv.Set("page", strconv.Itoa(page))
 	qv.Set("per_page", strconv.Itoa(l.perPage))
-	resp, err := l.transport.Get(ctx, l.baseURL, "/search/repositories", qv)
+	rawURL := strings.TrimRight(l.baseURL, "/") + "/search/repositories?" + rawQuery(qv)
+	resp, err := l.transport.GetURL(ctx, rawURL)
 	if err != nil {
 		return resp, err
 	}
@@ -289,6 +291,70 @@ func (l *listing) applyRateLimit(h map[string][]string) {
 			l.reset = &t
 		}
 	}
+}
+
+// rawQuery склеивает query без percent-encoding: GitHub Search иначе отвечает 422.
+func rawQuery(v url.Values) string {
+	keys := make([]string, 0, len(v))
+	for k := range v {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		for _, val := range v[k] {
+			if b.Len() > 0 {
+				b.WriteByte('&')
+			}
+			b.WriteString(k)
+			b.WriteByte('=')
+			b.WriteString(val)
+		}
+	}
+	return b.String()
+}
+
+// literalSearchURL снимает percent-encoding у query ссылки rel=next, не трогая «+».
+func literalSearchURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.RawQuery == "" {
+		return raw
+	}
+	decoded, err := pathUnescapeQuery(u.RawQuery)
+	if err != nil {
+		return raw
+	}
+	u.RawQuery = decoded
+	return u.String()
+}
+
+func pathUnescapeQuery(raw string) (string, error) {
+	parts := strings.Split(raw, "&")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(p, "=")
+		if !ok {
+			ku, err := url.PathUnescape(p)
+			if err != nil {
+				return "", err
+			}
+			out = append(out, ku)
+			continue
+		}
+		ku, err := url.PathUnescape(k)
+		if err != nil {
+			return "", err
+		}
+		vu, err := url.PathUnescape(v)
+		if err != nil {
+			return "", err
+		}
+		out = append(out, ku+"="+vu)
+	}
+	return strings.Join(out, "&"), nil
 }
 
 func linkURL(link, rel string) string {

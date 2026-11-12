@@ -68,6 +68,34 @@ func TestMapSearchItem(t *testing.T) {
 	}
 }
 
+func TestSearchQueryIsNotPercentEncoded(t *testing.T) {
+	t.Parallel()
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"total_count":0,"items":[]}`))
+	}))
+	defer srv.Close()
+
+	tr := scmhttp.NewTransport(srv.Client(), "tok")
+	b := NewListingBuilder(tr, conn.Config{Host: srv.URL, PerPage: 100})
+	list, err := b.SetPath("Snowbridge").Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := list.PagesCount(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	const want = "q=org:Snowbridge+user:Snowbridge"
+	if !strings.Contains(got, want) {
+		t.Fatalf("query %q", got)
+	}
+	if strings.Contains(got, "%3A") || strings.Contains(got, "%2B") {
+		t.Fatalf("encoded query %q", got)
+	}
+}
+
 func TestListingPagesAndRateLimit(t *testing.T) {
 	t.Parallel()
 	var base string
