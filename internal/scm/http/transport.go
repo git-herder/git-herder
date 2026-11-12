@@ -140,16 +140,16 @@ func (t *Transport) do(ctx context.Context, rawURL string) (Response, error) {
 	logging.Debug("http request", "method", req.Method, "url", rawURL, "headers", req.Header, "bodyLen", 0, "body", "")
 	resp, err := t.client.Do(req)
 	if err != nil {
-		logging.Debug("http response", "url", rawURL, "err", err, "bodyLen", 0, "body", "")
+		logging.DebugFull("http response", "url", rawURL, "err", err, "bodyLen", 0, "body", "")
 		return Response{}, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logging.Debug("http response", "url", rawURL, "status", resp.StatusCode, "err", err, "bodyLen", 0, "body", "")
+		logging.DebugFull("http response", "url", rawURL, "status", resp.StatusCode, "err", err, "bodyLen", 0, "body", "")
 		return Response{}, err
 	}
-	logging.Debug("http response", "status", resp.StatusCode, "headers", resp.Header, "bodyLen", len(body), "body", body, "err", error(nil))
+	logging.DebugFull("http response", "status", resp.StatusCode, "headers", resp.Header, "bodyLen", len(body), "body", body, "err", error(nil))
 	out := Response{
 		Status:     resp.StatusCode,
 		Body:       body,

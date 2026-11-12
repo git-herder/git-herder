@@ -48,7 +48,7 @@ func Enter(kv ...any) func(...any) {
 	name, loggerName := callerName(2)
 	entered := false
 	if tr != nil && tr.debug {
-		tr.debugLine(loggerName, "enter "+name+formatPairs(kv))
+		tr.debugLine(loggerName, "enter "+name+formatPairs(kv, true))
 		entered = true
 	}
 	return func(results ...any) {
@@ -57,21 +57,31 @@ func Enter(kv ...any) func(...any) {
 			return
 		}
 		if !entered {
-			tr.debugLine(loggerName, "enter "+name+formatPairs(kv))
+			tr.debugLine(loggerName, "enter "+name+formatPairs(kv, true))
 			entered = true
 		}
-		tr.debugLine(loggerName, "exit "+name+formatPairs(results))
+		tr.debugLine(loggerName, "exit "+name+formatPairs(results, true))
 	}
 }
 
 // Debug пишет диагностическую запись уровня debug от имени вызывающего пакета.
 func Debug(message string, kv ...any) {
+	writeDebug(message, true, kv...)
+}
+
+// DebugFull пишет debug-запись без предела 2048 байт на значение.
+// Файл хранит её целиком; stderr по-прежнему обрезает колонку message.
+func DebugFull(message string, kv ...any) {
+	writeDebug(message, false, kv...)
+}
+
+func writeDebug(message string, limit bool, kv ...any) {
 	tr := current.Load()
 	if tr == nil || !tr.debug {
 		return
 	}
-	_, loggerName := callerName(2)
-	tr.debugLine(loggerName, message+formatPairs(kv))
+	_, loggerName := callerName(3)
+	tr.debugLine(loggerName, message+formatPairs(kv, limit))
 }
 
 func (t *Trace) debugLine(loggerName, message string) {
@@ -140,7 +150,7 @@ func trimGeneric(name string) string {
 	return name
 }
 
-func formatPairs(kv []any) string {
+func formatPairs(kv []any, limit bool) string {
 	if len(kv) == 0 {
 		return ""
 	}
@@ -151,17 +161,17 @@ func formatPairs(kv []any) string {
 			key := fmt.Sprint(kv[i])
 			b.WriteString(key)
 			b.WriteByte('=')
-			b.WriteString(formatValue(key, kv[i+1], 0))
+			b.WriteString(formatValue(key, kv[i+1], 0, limit))
 			i += 2
 			continue
 		}
-		b.WriteString(formatValue("", kv[i], 0))
+		b.WriteString(formatValue("", kv[i], 0, limit))
 		i++
 	}
 	return redact.String(b.String())
 }
 
-func formatValue(key string, v any, depth int) string {
+func formatValue(key string, v any, depth int, limit bool) string {
 	if redact.IsSecretKey(key) {
 		return "***"
 	}
@@ -184,32 +194,38 @@ func formatValue(key string, v any, depth int) string {
 	if rv.Kind() == reflect.Func {
 		return "fn"
 	}
+	bound := func(s string) string {
+		if !limit {
+			return s
+		}
+		return truncate(s)
+	}
 	switch x := v.(type) {
 	case error:
-		return truncate(x.Error())
+		return bound(x.Error())
 	case string:
-		return truncate(x)
+		return bound(x)
 	case []byte:
-		return truncate(string(x))
+		return bound(string(x))
 	case time.Time:
-		return truncate(tstamp.DataTimestamp(x))
+		return bound(tstamp.DataTimestamp(x))
 	case time.Duration:
 		return x.String()
 	case http.Header:
-		return truncate(formatHeader(x))
+		return bound(formatHeader(x))
 	case url.Values:
-		return truncate(x.Encode())
+		return bound(x.Encode())
 	}
 	if s, ok := formatNamedSlice(rv); ok {
-		return truncate(s)
+		return bound(s)
 	}
 	if rv.Kind() == reflect.Pointer && rv.Elem().Kind() != reflect.Struct {
-		return formatValue(key, rv.Elem().Interface(), depth)
+		return formatValue(key, rv.Elem().Interface(), depth, limit)
 	}
 	if depth < 2 && (rv.Kind() == reflect.Struct || (rv.Kind() == reflect.Pointer && rv.Elem().Kind() == reflect.Struct)) {
-		return truncate(formatStruct(rv, depth))
+		return bound(formatStruct(rv, depth, limit))
 	}
-	return truncate(fmt.Sprint(v))
+	return bound(fmt.Sprint(v))
 }
 
 func formatNamedSlice(rv reflect.Value) (string, bool) {
@@ -236,7 +252,7 @@ func formatNamedSlice(rv reflect.Value) (string, bool) {
 	return fmt.Sprintf("%d %s", rv.Len(), strings.Join(names, ",")), true
 }
 
-func formatStruct(rv reflect.Value, depth int) string {
+func formatStruct(rv reflect.Value, depth int, limit bool) string {
 	if rv.Kind() == reflect.Pointer {
 		rv = rv.Elem()
 	}
@@ -264,7 +280,7 @@ func formatStruct(rv reflect.Value, depth int) string {
 			b.WriteString("fn")
 			continue
 		}
-		b.WriteString(formatValue(f.Name, fv.Interface(), depth+1))
+		b.WriteString(formatValue(f.Name, fv.Interface(), depth+1, limit))
 	}
 	b.WriteByte('}')
 	return b.String()

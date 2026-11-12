@@ -184,7 +184,7 @@ func (h *tsvHandler) Handle(_ context.Context, r slog.Record) error {
 			loggerName = a.Value.String()
 		}
 	}
-	msg := escapeTSV(redact.String(r.Message))
+	msg := escapeTSV(redact.String(truncate(r.Message)))
 	line := strings.Join([]string{
 		tstamp.DataTimestamp(r.Time),
 		strings.ToLower(r.Level.String()),

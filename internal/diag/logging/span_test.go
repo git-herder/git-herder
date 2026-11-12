@@ -55,7 +55,8 @@ func TestEnterExitMasksAndTruncates(t *testing.T) {
 	h := http.Header{}
 	h.Set("Authorization", "Bearer sekret-value")
 	Debug("http request", "headers", h)
-	Debug("http response", "body", strings.Repeat("x", 3000))
+	DebugFull("http response", "body", strings.Repeat("x", 3000))
+	Debug("note", "text", strings.Repeat("y", 3000))
 	Debug("cards", "cards", []namedCard{{"org/a"}, {"org/b"}})
 
 	body, err := os.ReadFile(tr.FilePath())
@@ -69,6 +70,7 @@ func TestEnterExitMasksAndTruncates(t *testing.T) {
 		"token=***",
 		"err=<nil>",
 		"Authorization=***",
+		strings.Repeat("x", 3000),
 		"…(3000 bytes)",
 		"cards=2 org/a,org/b",
 	} {
@@ -76,14 +78,17 @@ func TestEnterExitMasksAndTruncates(t *testing.T) {
 			t.Errorf("missing %q in %s", want, s)
 		}
 	}
+	if strings.Contains(s, "body="+strings.Repeat("x", 3000)+"…") {
+		t.Fatal("http response body was truncated in the file")
+	}
 	if !strings.Contains(string(body), `"loggerName":"diag.logging"`) {
 		t.Fatalf("loggerName: %s", body)
 	}
 	if strings.Contains(s, "sekret-value") {
 		t.Fatalf("secret leaked: %s", s)
 	}
-	if strings.Contains(s, strings.Repeat("x", 2049)) {
-		t.Fatal("body was not truncated")
+	if strings.Contains(s, strings.Repeat("y", 2049)) {
+		t.Fatal("ordinary debug value was not truncated")
 	}
 }
 

@@ -76,7 +76,7 @@ func TestGetDebugLogMasksTokenAndBody(t *testing.T) {
 		"q=org%3Aacme",
 		"status=200",
 		"X-Ratelimit-Remaining=7",
-		"…(3000 bytes)",
+		strings.Repeat("z", 3000),
 		"Authorization=***",
 	} {
 		if !strings.Contains(s, want) {
