@@ -20,10 +20,10 @@ import (
 
 var qpQnPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
-var (
-	errEmptySearchQuery = errors.New("github search query has no server-side fragments")
-	errInvalidQPQN      = errors.New("github qp/qn value contains disallowed characters")
-)
+// matchAllSearchQ — q, когда server-side фрагментов нет (listing § сборка q).
+const matchAllSearchQ = "stars:>=0"
+
+var errInvalidQPQN = errors.New("github qp/qn value contains disallowed characters")
 
 // NewListingBuilder создаёт билдер GitHub listing.
 func NewListingBuilder(transport *scmhttp.Transport, cfg conn.Config) scm.ListingBuilder {
@@ -100,7 +100,7 @@ func buildSearchQ(paths, names []string, attrs []scm.NameValue) (string, error) 
 		frags = append(frags, "props."+a.Name+":"+a.Value)
 	}
 	if len(frags) == 0 {
-		return "", errEmptySearchQuery
+		return matchAllSearchQ, nil
 	}
 	return strings.Join(frags, "+"), nil
 }

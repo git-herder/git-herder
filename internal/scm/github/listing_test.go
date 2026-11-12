@@ -18,9 +18,12 @@ func TestBuilderFluentAndBuildFailsOnTagOnly(t *testing.T) {
 	t.Parallel()
 	tr := scmhttp.NewTransport(http.DefaultClient, "")
 	b2 := NewListingBuilder(tr, conn.Config{Host: "https://api.github.com"})
-	_, err := b2.SetTag("only").Build()
-	if err != errEmptySearchQuery {
-		t.Fatalf("got %v", err)
+	list, err := b2.SetTag("only").Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if list.(*listing).q != matchAllSearchQ {
+		t.Fatalf("q=%q", list.(*listing).q)
 	}
 	b := NewListingBuilder(tr, conn.Config{Host: "https://api.github.com"})
 	if _, err = b.SetPath("p").SetName("n").SetAttribute("a", "b").Build(); err != nil {
@@ -31,12 +34,12 @@ func TestBuilderFluentAndBuildFailsOnTagOnly(t *testing.T) {
 func TestBuildSearchQ(t *testing.T) {
 	t.Parallel()
 	q, err := buildSearchQ([]string{"jopos"}, []string{"code2"}, []scm.NameValue{{Name: "foo", Value: "bar"}})
-	if err != nil || !strings.Contains(q, "org:jopos") || !strings.Contains(q, "code2") || !strings.Contains(q, "props.foo:bar") {
+	if err != nil || !strings.Contains(q, "org:jopos") || !strings.Contains(q, "code2") || !strings.Contains(q, "props.foo:bar") || strings.Contains(q, "stars:") {
 		t.Fatalf("q=%q err=%v", q, err)
 	}
-	_, err = buildSearchQ(nil, nil, nil)
-	if err != errEmptySearchQuery {
-		t.Fatalf("want empty q err, got %v", err)
+	q, err = buildSearchQ(nil, nil, nil)
+	if err != nil || q != matchAllSearchQ {
+		t.Fatalf("q=%q err=%v", q, err)
 	}
 	_, err = buildSearchQ([]string{"bad*"}, nil, nil)
 	if err != errInvalidQPQN {

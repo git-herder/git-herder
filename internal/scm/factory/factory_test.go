@@ -48,7 +48,7 @@ func TestNewListingGitHubNeedsQFragments(t *testing.T) {
 		conn.Config{Upstream: resolved.UpstreamGitHub, Host: "https://api.github.com"},
 		scm.ListingCriteria{Tags: []string{"only-tag"}},
 	)
-	if err == nil {
-		t.Fatal("expected empty q error")
+	if err != nil {
+		t.Fatal(err)
 	}
 }

@@ -108,10 +108,6 @@ func run(cmd *cobra.Command, ui *console.UI) error {
 			return nil
 		}
 	}
-	if err := settings.Criteria.ValidateGitHubFragments(g.Upstream); err != nil {
-		ui.Error(err.Error())
-		return exit1(err)
-	}
 
 	jsonPath, err := prepareOutput(settings)
 	if err != nil {

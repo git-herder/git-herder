@@ -209,17 +209,6 @@ func (c *Criteria) ValidateShape(up resolved.Upstream) error {
 	return nil
 }
 
-// ValidateGitHubFragments — ошибка до HTTP, если в режиме --q* не из чего собрать q.
-func (c Criteria) ValidateGitHubFragments(up resolved.Upstream) error {
-	if up != resolved.UpstreamGitHub || c.Search {
-		return nil
-	}
-	if c.GitHubHasQueryFragment() {
-		return nil
-	}
-	return fmt.Errorf("github search query has no server-side fragments: set --qp, --qn, or --qa with =")
-}
-
 func normalizeSearch(up resolved.Upstream, pairs []SearchPair) ([]SearchPair, error) {
 	switch up {
 	case resolved.UpstreamGitHub:

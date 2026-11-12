@@ -97,15 +97,9 @@ func TestValidateShape(t *testing.T) {
 		t.Fatal("upstream")
 	}
 	onlyQT := Criteria{Tags: []TagFilter{{Name: "t"}}}
-	if err := onlyQT.ValidateGitHubFragments(resolved.UpstreamGitHub); err == nil {
-		t.Fatal("fragments")
-	}
 	withEq := Criteria{Attrs: []AttrFilter{{Key: "k", Op: "=", Value: "v"}}}
-	if err := withEq.ValidateGitHubFragments(resolved.UpstreamGitHub); err != nil {
-		t.Fatal(err)
-	}
-	if err := onlyQT.ValidateGitHubFragments(resolved.UpstreamGitLab); err != nil {
-		t.Fatal(err)
+	if onlyQT.GitHubHasQueryFragment() || !withEq.GitHubHasQueryFragment() {
+		t.Fatal("q fragments")
 	}
 	if !withEq.HasCriterion() || !withEq.GitHubHasQueryFragment() {
 		t.Fatal("criterion")

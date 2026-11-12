@@ -16,6 +16,8 @@ func TestReportCommandPaths(t *testing.T) {
 	t.Setenv("GITHERD_PROFILE_DIR", dir)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case strings.Contains(r.URL.Path, "search/repositories"):
+			_, _ = w.Write([]byte(`{"total_count":0,"items":[]}`))
 		case strings.Contains(r.URL.Path, "/labels"):
 			_, _ = w.Write([]byte(`[{"name":"pub"}]`))
 		case strings.Contains(r.URL.Path, "/custom_attributes"):
@@ -81,9 +83,12 @@ func TestReportCommandPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root.SetArgs([]string{"--upstream", "github", "--token", "t", "report", "--qt", "only"})
-	if err := root.Execute(); err == nil {
-		t.Fatal("no q fragments")
+	root.SetArgs([]string{
+		"--upstream", "github", "--host", srv.URL, "--token", "t", "--retries-number", "0",
+		"report", "--qt", "only",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
 	}
 
 	existing := filepath.Join(dir, "exists.json")
