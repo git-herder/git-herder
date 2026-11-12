@@ -6,25 +6,34 @@ import (
 	"encoding/json"
 	"os"
 	"sort"
+	"strings"
+
+	"golang.org/x/term"
 
 	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
 )
 
-// WriteStdout пишет по строке на репозиторий: полное имя, таб, url.
+// WriteStdout пишет по строке на репозиторий.
+// Терминал — имя-ссылка OSC 8; пайп и файл — полное имя, таб, url.
 func WriteStdout(cards []card.Card) (err error) {
 	leave := logging.Enter("count", len(cards))
 	defer func() { leave("err", err) }()
 	sorted := sortedCopy(cards)
+	terminal := term.IsTerminal(int(os.Stdout.Fd()))
 	var buf bytes.Buffer
 	for _, c := range sorted {
-		buf.WriteString(c.FullName())
-		buf.WriteByte('\t')
-		buf.WriteString(c.URL)
-		buf.WriteByte('\n')
+		buf.WriteString(formatStdoutLine(c.FullName(), c.URL, terminal))
 	}
 	_, err = os.Stdout.Write(buf.Bytes())
 	return err
+}
+
+func formatStdoutLine(name, rawURL string, terminal bool) string {
+	if !terminal || rawURL == "" || strings.ContainsAny(name, "\a\x1b") || strings.ContainsAny(rawURL, "\a\x1b") {
+		return name + "\t" + rawURL + "\n"
+	}
+	return "\033]8;;" + rawURL + "\033\\" + name + "\033]8;;\033\\\n"
 }
 
 // WriteJSON записывает один JSON-массив карточек.

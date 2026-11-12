@@ -42,4 +42,15 @@ func TestWriteJSONSortsAndStdout(t *testing.T) {
 	if err := WriteStdout(cards[:1]); err != nil {
 		t.Fatal(err)
 	}
+	plain := formatStdoutLine("g/a", "https://ex/a", false)
+	if plain != "g/a\thttps://ex/a\n" {
+		t.Fatalf("plain %q", plain)
+	}
+	linked := formatStdoutLine("g/a", "https://ex/a", true)
+	if linked != "\033]8;;https://ex/a\033\\g/a\033]8;;\033\\\n" {
+		t.Fatalf("link %q", linked)
+	}
+	if formatStdoutLine("g/a", "", true) != "g/a\t\n" {
+		t.Fatal("empty url")
+	}
 }
