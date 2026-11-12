@@ -54,7 +54,8 @@ func Register(root *cobra.Command) {
 }
 
 // NormalizeArgs превращает отдельный --output / -o без значения в --output=
-// (имя файла по умолчанию). Форма --output путь не меняется.
+// (имя файла по умолчанию). Короткая форма -o= у pflag означает значение «=»,
+// поэтому пустой -o тоже записывается длинной формой. --output путь не меняется.
 func NormalizeArgs(args []string) []string {
 	out := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
@@ -65,7 +66,7 @@ func NormalizeArgs(args []string) []string {
 		}
 		if a == "--output" || a == "-o" {
 			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
-				out = append(out, a+"=")
+				out = append(out, "--output=")
 				continue
 			}
 		}

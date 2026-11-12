@@ -137,7 +137,11 @@ func TestReportCommandPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	norm := NormalizeArgs([]string{"report", "--output", "--force", "-o"})
-	if len(norm) != 4 || norm[1] != "--output=" || norm[2] != "--force" || norm[3] != "-o=" {
+	if len(norm) != 4 || norm[1] != "--output=" || norm[2] != "--force" || norm[3] != "--output=" {
 		t.Fatalf("%v", norm)
+	}
+	kept := NormalizeArgs([]string{"report", "-o", "out.json"})
+	if len(kept) != 3 || kept[1] != "-o" || kept[2] != "out.json" {
+		t.Fatalf("kept %v", kept)
 	}
 }
