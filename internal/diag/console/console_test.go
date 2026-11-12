@@ -19,6 +19,10 @@ func TestUIHelpers(t *testing.T) {
 	if got2 != "name" {
 		t.Fatal(got2)
 	}
+	if _, err := ui.ConfirmRiskyEnumeration(); err == nil {
+		t.Fatal("expected non-tty error")
+	}
+	ui.WarningStderr("warn")
 	ok, err := ui.ConfirmDrop("x")
 	if err != nil {
 		t.Fatal(err)

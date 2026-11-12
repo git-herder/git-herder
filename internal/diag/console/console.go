@@ -55,6 +55,25 @@ func (u *UI) HighlightDefault(name string, isDefault bool) string {
 	return name + " (default)"
 }
 
+// WarningStderr пишет предупреждение в stderr, не смешивая его со stdout отчёта.
+func (u *UI) WarningStderr(msg string) {
+	pterm.Warning.WithWriter(os.Stderr).Println(msg)
+}
+
+// ConfirmRiskyEnumeration спрашивает подтверждение отбора без критериев.
+// Без TTY возвращает ошибку: продолжать нельзя.
+func (u *UI) ConfirmRiskyEnumeration() (bool, error) {
+	msg := "No selection criteria: listing every repository may take a long time and put a high load on the SCM API"
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return false, fmt.Errorf("%s; set criteria or run in an interactive terminal", msg)
+	}
+	u.WarningStderr(msg)
+	return pterm.DefaultInteractiveConfirm.
+		WithDefaultText("Continue?").
+		WithDefaultValue(false).
+		Show()
+}
+
 // ConfirmDrop спрашивает подтверждение удаления профиля; false — отмена.
 func (u *UI) ConfirmDrop(profileName string) (bool, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {

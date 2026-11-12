@@ -8,6 +8,25 @@ import (
 	"time"
 )
 
+func TestReserveReportPath(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 1, 2, 3, 4, 5, 6e7, time.UTC)
+	first, err := ReserveReportPath(dir, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(first, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	second, err := ReserveReportPath(dir, now)
+	if err != nil || second == first || filepath.Ext(second) != ".json" {
+		t.Fatalf("second %s err %v", second, err)
+	}
+	if !IsDataTimestamp("2026-01-02T03:04:05.000+00:00") || IsDataTimestamp("nope") {
+		t.Fatal("timestamp")
+	}
+}
+
 func TestDataTimestampFormat(t *testing.T) {
 	loc := time.FixedZone("MSK", 3*3600)
 	tm := time.Date(2026, 8, 28, 12, 49, 0, 123000000, loc)

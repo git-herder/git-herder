@@ -5,8 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 )
+
+var dataTimestampPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}$`)
+
+// IsDataTimestamp сообщает, подходит ли строка под профиль data-timestamp.
+func IsDataTimestamp(s string) bool {
+	return dataTimestampPattern.MatchString(s)
+}
 
 // DataTimestamp возвращает строку data-timestamp для полей журнала.
 func DataTimestamp(t time.Time) string {
@@ -47,6 +55,23 @@ func FSTimestamp(t time.Time) string {
 func offsetSeconds(loc *time.Location, t time.Time) int {
 	_, off := t.In(loc).Zone()
 	return off
+}
+
+// ReserveReportPath подбирает githerd-report-<fs-timestamp>.json в dir.
+// Коллизия в ту же миллисекунду — суффиксы -2, -3, … перед .json.
+func ReserveReportPath(dir string, t time.Time) (string, error) {
+	stamp := FSTimestamp(t)
+	path := filepath.Join(dir, "githerd-report-"+stamp+".json")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return path, nil
+	}
+	for n := 2; n < 10000; n++ {
+		candidate := filepath.Join(dir, fmt.Sprintf("githerd-report-%s-%d.json", stamp, n))
+		if _, err := os.Stat(candidate); os.IsNotExist(err) {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("tstamp: too many report file name collisions")
 }
 
 // ReserveLogFilePath подбирает путь git-herder-<fs>.log во временном каталоге с учётом коллизий.

@@ -24,9 +24,9 @@ func TestBuilderAccumulatesClientSideCriteria(t *testing.T) {
 
 func TestMapProject(t *testing.T) {
 	t.Parallel()
-	raw := []byte(`{"id":42,"name":"spec","path_with_namespace":"g/h/spec","topics":["t"]}`)
+	raw := []byte(`{"id":42,"name":"spec","path_with_namespace":"g/h/spec","web_url":"https://gitlab.example/g/h/spec","topics":["t"]}`)
 	c, err := MapProject(raw)
-	if err != nil || c.UID != "42" || c.Path != "g/h" {
+	if err != nil || c.UID.String() != "42" || c.URL == "" || c.Path != "g/h" {
 		t.Fatalf("%+v err=%v", c, err)
 	}
 }
@@ -38,7 +38,7 @@ func TestListingQueryAndPages(t *testing.T) {
 		gotQuery = r.URL.RawQuery
 		w.Header().Set("X-Total-Pages", "2")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[{"id":1,"name":"a","path_with_namespace":"g/a"}]`))
+		_, _ = w.Write([]byte(`[{"id":1,"name":"a","path_with_namespace":"g/a","web_url":"https://gitlab.example/g/a"}]`))
 	}))
 	defer srv.Close()
 

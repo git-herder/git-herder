@@ -2,6 +2,8 @@
 package conn
 
 import (
+	"time"
+
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
 )
@@ -14,6 +16,8 @@ type Config struct {
 	SelectionScope  resolved.SelectionScope
 	IncludeInactive bool
 	PerPage         int
+	OnLimit         string
+	OnQuotaWait     func(time.Time)
 }
 
 // FromGlobals строит conn из Globals и параметров команды.

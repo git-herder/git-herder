@@ -105,7 +105,7 @@ func (l *listing) Repositories(ctx context.Context, page int) ([]card.Card, erro
 		return nil, err
 	}
 	if resp.Status != 200 {
-		return nil, fmt.Errorf("gitlab list returned HTTP %d", resp.Status)
+		return nil, &scm.HTTPError{Status: resp.Status, What: "gitlab list"}
 	}
 	return decodeProjects(resp.Body)
 }

@@ -10,18 +10,22 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Snowbridge/git-herder/internal/appexit"
+	profilecmd "github.com/Snowbridge/git-herder/internal/cli/profile"
 	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/profilestore"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/version"
-	profilecmd "github.com/Snowbridge/git-herder/internal/cli/profile"
 )
+
+// RegisterExtra подключает команды из пакетов, которые сами импортируют cli.
+var RegisterExtra func(*cobra.Command)
 
 // Runtime — общее состояние запуска (Logger, Store).
 type Runtime struct {
-	Trace   *logging.Trace
-	Store   *profilestore.Store
-	Globals resolved.Globals
+	Trace      *logging.Trace
+	Store      *profilestore.Store
+	Globals    resolved.Globals
+	ProfileDoc map[string]any
 }
 
 // ActiveRuntime устанавливается в PersistentPreRun для команд.
@@ -62,6 +66,9 @@ func NewRootCommand() (*cobra.Command, error) {
 	pf.String("profile", "", "Named YAML profile for this run")
 
 	profilecmd.Register(root, store)
+	if RegisterExtra != nil {
+		RegisterExtra(root)
+	}
 
 	return root, nil
 }
@@ -116,7 +123,7 @@ func bootstrapRun(cmd *cobra.Command, store *profilestore.Store) error {
 	if err != nil {
 		return err
 	}
-	ActiveRuntime = &Runtime{Trace: trace, Store: store, Globals: globals}
+	ActiveRuntime = &Runtime{Trace: trace, Store: store, Globals: globals, ProfileDoc: doc}
 	log := trace.Logger("cli.run")
 	trace.InfoStartCommand(log, profileLabel, strings.Join(os.Args, " "))
 	return nil

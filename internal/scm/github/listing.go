@@ -110,12 +110,35 @@ type listing struct {
 	baseURL   string
 	perPage   int
 	q         string
+	search    url.Values
 
 	pagesReady bool
 	totalPages int
+	cache      map[int][]card.Card
 
 	limit, used *int
 	reset       *time.Time
+}
+
+// NewSearchListing строит listing ветки --scm-search (пары уже проверены).
+func NewSearchListing(transport *scmhttp.Transport, cfg conn.Config, pairs []scm.SearchPair) (scm.Listing, error) {
+	perPage := cfg.PerPage
+	if perPage <= 0 {
+		perPage = scm.DefaultPerPage
+	}
+	qv := url.Values{}
+	for _, p := range pairs {
+		qv.Set(p.Key, p.Value)
+	}
+	if strings.TrimSpace(qv.Get("q")) == "" {
+		return nil, fmt.Errorf("invalid --scm-search: missing q")
+	}
+	return &listing{
+		transport: transport,
+		baseURL:   cfg.Host,
+		perPage:   perPage,
+		search:    qv,
+	}, nil
 }
 
 func (l *listing) PagesCount(ctx context.Context) (int, error) {
@@ -135,19 +158,24 @@ func (l *listing) Repositories(ctx context.Context, page int) ([]card.Card, erro
 	if page > l.totalPages {
 		return nil, fmt.Errorf("page %d out of range", page)
 	}
+	if l.cache != nil {
+		if cards, ok := l.cache[page]; ok {
+			return cards, nil
+		}
+	}
 	resp, err := l.fetchPage(ctx, page)
 	if err != nil {
 		return nil, err
 	}
 	if resp.Status != 200 {
-		return nil, fmt.Errorf("github list returned HTTP %d", resp.Status)
+		return nil, &scm.HTTPError{Status: resp.Status, What: "github list"}
 	}
 	return decodeSearchItems(resp.Body)
 }
 
-func (l *listing) RateLimit() *int       { return l.limit }
+func (l *listing) RateLimit() *int            { return l.limit }
 func (l *listing) RateLimitReset() *time.Time { return l.reset }
-func (l *listing) RateLimitUsed() *int   { return l.used }
+func (l *listing) RateLimitUsed() *int        { return l.used }
 
 func (l *listing) ensurePages(ctx context.Context) error {
 	if l.pagesReady {
@@ -158,31 +186,67 @@ func (l *listing) ensurePages(ctx context.Context) error {
 		return err
 	}
 	l.applyRateLimit(resp.Header)
+	if resp.Status != 200 {
+		return &scm.HTTPError{Status: resp.Status, What: "github list"}
+	}
 	pages, err := pagesFromLink(resp.Header.Get("Link"))
 	if err != nil {
 		return err
 	}
 	if pages == 0 {
+		next := linkURL(resp.Header.Get("Link"), "next")
+		if next != "" {
+			return l.walkNext(ctx, resp)
+		}
 		pages = 1
-		var payload struct {
-			TotalCount int `json:"total_count"`
-		}
-		_ = json.Unmarshal(resp.Body, &payload)
-		if resp.Status == 200 && payload.TotalCount == 0 {
-			pages = 1
-		}
-		if resp.Status == 200 && payload.TotalCount > 0 && pages == 1 {
-			// без rel=last остаётся одна страница до уточнения через next (v1)
-		}
 	}
 	l.totalPages = pages
 	l.pagesReady = true
 	return nil
 }
 
+// walkNext обходит страницы по rel=next, когда rel=last нет, и кеширует карточки.
+func (l *listing) walkNext(ctx context.Context, first scmhttp.Response) error {
+	cards, err := decodeSearchItems(first.Body)
+	if err != nil {
+		return err
+	}
+	l.cache = map[int][]card.Card{1: cards}
+	page := 1
+	next := linkURL(first.Header.Get("Link"), "next")
+	for next != "" && page < 10000 {
+		page++
+		resp, err := l.transport.GetURL(ctx, next)
+		if err != nil {
+			return err
+		}
+		l.applyRateLimit(resp.Header)
+		if resp.Status != 200 {
+			return &scm.HTTPError{Status: resp.Status, What: "github list"}
+		}
+		cards, err = decodeSearchItems(resp.Body)
+		if err != nil {
+			return err
+		}
+		l.cache[page] = cards
+		next = linkURL(resp.Header.Get("Link"), "next")
+	}
+	l.totalPages = page
+	l.pagesReady = true
+	return nil
+}
+
 func (l *listing) fetchPage(ctx context.Context, page int) (scmhttp.Response, error) {
 	qv := url.Values{}
-	qv.Set("q", l.q)
+	if l.search != nil {
+		for k, vs := range l.search {
+			for _, v := range vs {
+				qv.Add(k, v)
+			}
+		}
+	} else {
+		qv.Set("q", l.q)
+	}
 	qv.Set("page", strconv.Itoa(page))
 	qv.Set("per_page", strconv.Itoa(l.perPage))
 	resp, err := l.transport.Get(ctx, l.baseURL, "/search/repositories", qv)
@@ -218,13 +282,14 @@ func (l *listing) applyRateLimit(h map[string][]string) {
 	}
 }
 
-func pagesFromLink(link string) (int, error) {
+func linkURL(link, rel string) string {
 	if link == "" {
-		return 0, nil
+		return ""
 	}
+	needle := `rel="` + rel + `"`
 	for _, part := range strings.Split(link, ",") {
 		part = strings.TrimSpace(part)
-		if !strings.Contains(part, `rel="last"`) {
+		if !strings.Contains(part, needle) {
 			continue
 		}
 		uStart := strings.Index(part, "<")
@@ -232,17 +297,25 @@ func pagesFromLink(link string) (int, error) {
 		if uStart < 0 || uEnd <= uStart {
 			continue
 		}
-		u, err := url.Parse(part[uStart+1 : uEnd])
-		if err != nil {
-			return 0, err
-		}
-		p := u.Query().Get("page")
-		if p == "" {
-			continue
-		}
-		return strconv.Atoi(p)
+		return part[uStart+1 : uEnd]
 	}
-	return 0, nil
+	return ""
+}
+
+func pagesFromLink(link string) (int, error) {
+	raw := linkURL(link, "last")
+	if raw == "" {
+		return 0, nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return 0, err
+	}
+	p := u.Query().Get("page")
+	if p == "" {
+		return 0, nil
+	}
+	return strconv.Atoi(p)
 }
 
 func decodeSearchItems(body []byte) ([]card.Card, error) {

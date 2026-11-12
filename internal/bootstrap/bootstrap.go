@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Snowbridge/git-herder/internal/cli"
+	reportcmd "github.com/Snowbridge/git-herder/internal/cli/report"
 )
 
 // Run запускает CLI и завершает процесс с кодом по спеке.
@@ -22,7 +23,7 @@ func RunWithArgs(args []string) int {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return 1
 	}
-	root.SetArgs(args)
+	root.SetArgs(reportcmd.NormalizeArgs(args))
 	if err := root.Execute(); err != nil {
 		code := cli.ExitCodeFromError(err)
 		if cli.ActiveRuntime != nil && cli.ActiveRuntime.Trace != nil {

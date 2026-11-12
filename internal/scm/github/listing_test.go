@@ -55,12 +55,12 @@ func TestPagesFromLink(t *testing.T) {
 
 func TestMapSearchItem(t *testing.T) {
 	t.Parallel()
-	raw := []byte(`{"full_name":"org/repo","name":"repo","description":"d","topics":["a"]}`)
+	raw := []byte(`{"full_name":"org/repo","name":"repo","description":"d","html_url":"https://github.com/org/repo","topics":["a"]}`)
 	c, err := MapSearchItem(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.UID != "org/repo" || c.Path != "org" || c.Name != "repo" || c.Labels[0] != "a" {
+	if c.UID.String() != "org/repo" || c.URL != "https://github.com/org/repo" || c.Path != "org" || c.Name != "repo" || c.Labels[0] != "a" {
 		t.Fatalf("%+v", c)
 	}
 }
@@ -74,7 +74,7 @@ func TestListingPagesAndRateLimit(t *testing.T) {
 		w.Header().Set("X-Ratelimit-Used", "1")
 		w.Header().Set("X-Ratelimit-Reset", "1700000000")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"total_count":1,"items":[{"full_name":"o/r","name":"r","topics":[]}]}`))
+		_, _ = w.Write([]byte(`{"total_count":1,"items":[{"full_name":"o/r","name":"r","html_url":"https://github.com/o/r","topics":[]}]}`))
 	}))
 	defer srv.Close()
 	base = srv.URL
@@ -113,9 +113,8 @@ func TestListingPagesAndRateLimit(t *testing.T) {
 
 func TestMapSearchItemEmptyDesc(t *testing.T) {
 	t.Parallel()
-	c, err := MapSearchItem([]byte(`{"full_name":"a","name":"b"}`))
+	c, err := MapSearchItem([]byte(`{"full_name":"a","name":"b","html_url":"https://github.com/a"}`))
 	if err != nil || c.Description != "" || c.Path != "" {
 		t.Fatalf("%+v", c)
 	}
 }
-
