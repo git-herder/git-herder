@@ -4,7 +4,9 @@ package factory
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
 	"github.com/Snowbridge/git-herder/internal/scm/conn"
@@ -38,7 +40,15 @@ func NewClientFactoryWithClient(client *http.Client) *ClientFactory {
 }
 
 // Open собирает listing и активные задания обогащения.
-func (f *ClientFactory) Open(cfg conn.Config, crit scm.Criteria) (scm.Listing, []scm.Enricher, error) {
+func (f *ClientFactory) Open(cfg conn.Config, crit scm.Criteria) (listing scm.Listing, jobs []scm.Enricher, err error) {
+	leave := logging.Enter("host", cfg.Host, "upstream", cfg.Upstream, "search", crit.Search)
+	defer func() {
+		mode := "listing"
+		if crit.Search {
+			mode = "search"
+		}
+		leave("mode", mode, "enrichers", enricherIDs(jobs), "err", err)
+	}()
 	t := f.scopedTransport(cfg)
 	if crit.Search {
 		switch cfg.Upstream {
@@ -52,7 +62,7 @@ func (f *ClientFactory) Open(cfg conn.Config, crit scm.Criteria) (scm.Listing, [
 			return nil, nil, fmt.Errorf("unsupported upstream %d", cfg.Upstream)
 		}
 	}
-	listing, err := f.buildQueryListing(t, cfg, crit)
+	listing, err = f.buildQueryListing(t, cfg, crit)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -60,7 +70,9 @@ func (f *ClientFactory) Open(cfg conn.Config, crit scm.Criteria) (scm.Listing, [
 }
 
 // NewListing настраивает билдер выбранного upstream и возвращает ScmListing.
-func (f *ClientFactory) NewListing(cfg conn.Config, crit scm.ListingCriteria) (scm.Listing, error) {
+func (f *ClientFactory) NewListing(cfg conn.Config, crit scm.ListingCriteria) (out scm.Listing, err error) {
+	leave := logging.Enter("host", cfg.Host, "upstream", cfg.Upstream, "paths", crit.Paths, "names", crit.Names, "tags", crit.Tags)
+	defer func() { leave("err", err) }()
 	c := scm.Criteria{
 		Paths:           crit.Paths,
 		Names:           crit.Names,
@@ -73,8 +85,21 @@ func (f *ClientFactory) NewListing(cfg conn.Config, crit scm.ListingCriteria) (s
 	for _, attr := range crit.Attrs {
 		c.Attrs = append(c.Attrs, scm.AttrFilter{Key: attr.Name, Op: "=", Value: attr.Value})
 	}
-	listing, _, err := f.Open(cfg, c)
-	return listing, err
+	out, _, err = f.Open(cfg, c)
+	return out, err
+}
+
+func enricherIDs(jobs []scm.Enricher) string {
+	if len(jobs) == 0 {
+		return ""
+	}
+	ids := make([]string, 0, len(jobs))
+	for _, j := range jobs {
+		if j != nil {
+			ids = append(ids, j.ID())
+		}
+	}
+	return strings.Join(ids, ",")
 }
 
 func (f *ClientFactory) scopedTransport(cfg conn.Config) *scmhttp.Transport {

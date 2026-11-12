@@ -4,6 +4,8 @@ package resolved
 import (
 	"fmt"
 	"strings"
+
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 )
 
 // Upstream — SCM-платформа после резолва.
@@ -15,8 +17,21 @@ const (
 	UpstreamGitLab
 )
 
+func (u Upstream) String() string {
+	switch u {
+	case UpstreamGitHub:
+		return "github"
+	case UpstreamGitLab:
+		return "gitlab"
+	default:
+		return "unset"
+	}
+}
+
 // ParseUpstream разбирает строку upstream (регистр не важен).
-func ParseUpstream(s string) (Upstream, error) {
+func ParseUpstream(s string) (u Upstream, err error) {
+	leave := logging.Enter("s", s)
+	defer func() { leave("upstream", u, "err", err) }()
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return UpstreamUnset, nil

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 )
 
@@ -89,7 +90,9 @@ func (c Criteria) EqualAttrs() []NameValue {
 }
 
 // ParseTag разбирает одно значение --qt.
-func ParseTag(raw string) (TagFilter, error) {
+func ParseTag(raw string) (tag TagFilter, err error) {
+	leave := logging.Enter("raw", raw)
+	defer func() { leave("name", tag.Name, "absent", tag.Absent, "err", err) }()
 	if strings.ContainsAny(raw, "<>") {
 		return TagFilter{}, fmt.Errorf("invalid --qt %q", raw)
 	}
@@ -112,7 +115,9 @@ func ParseTag(raw string) (TagFilter, error) {
 }
 
 // ParseAttr разбирает одно значение --qa.
-func ParseAttr(raw string) (AttrFilter, error) {
+func ParseAttr(raw string) (attr AttrFilter, err error) {
+	leave := logging.Enter("raw", raw)
+	defer func() { leave("key", attr.Key, "op", attr.Op, "value", attr.Value, "err", err) }()
 	ops := []string{"<=", ">=", "!=", "<", ">", "="}
 	idx := -1
 	op := ""
@@ -139,7 +144,9 @@ func ParseAttr(raw string) (AttrFilter, error) {
 }
 
 // ParseSearch разбирает строку scm-search в пары key=value (последняя побеждает).
-func ParseSearch(raw string) ([]SearchPair, error) {
+func ParseSearch(raw string) (pairs []SearchPair, err error) {
+	leave := logging.Enter("raw", raw)
+	defer func() { leave("count", len(pairs), "err", err) }()
 	fields := strings.Fields(raw)
 	if len(fields) == 0 {
 		return nil, fmt.Errorf("invalid --scm-search %q", raw)
@@ -165,7 +172,13 @@ func ParseSearch(raw string) ([]SearchPair, error) {
 
 // ValidateShape проверяет контракт до запросов к SCM.
 // Пустой набор критериев и отсутствие фрагментов q GitHub сюда не входят.
-func (c *Criteria) ValidateShape(up resolved.Upstream) error {
+func (c *Criteria) ValidateShape(up resolved.Upstream) (err error) {
+	search := false
+	if c != nil {
+		search = c.Search
+	}
+	leave := logging.Enter("upstream", up, "search", search)
+	defer func() { leave("err", err) }()
 	if c.Search && (len(c.Paths)+len(c.Names)+len(c.Tags)+len(c.Attrs) > 0) {
 		return fmt.Errorf("scm-search cannot be combined with --qp, --qn, --qt, or --qa")
 	}

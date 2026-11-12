@@ -2,7 +2,11 @@ package retrying
 
 import (
 	"errors"
+	"os"
+	"strings"
 	"testing"
+
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 )
 
 func TestExecuteSuccessRetryContinueAbort(t *testing.T) {
@@ -50,5 +54,45 @@ func TestExecuteSuccessRetryContinueAbort(t *testing.T) {
 	}
 	if (&AbortError{}).Error() == "" {
 		t.Fatal("empty abort")
+	}
+}
+
+func TestExecuteDebugLogsDecision(t *testing.T) {
+	tr, err := logging.New(logging.Options{Debug: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logging.Bind(tr)
+	defer func() {
+		logging.Unbind(tr)
+		_ = tr.Close()
+	}()
+
+	if _, err := Execute([]int{1}, 1, PolicyContinue, nil, func(int) error {
+		return errors.New("boom")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Execute([]int{1}, 0, PolicyAbort, nil, func(int) error {
+		return errors.New("stop")
+	}); err == nil {
+		t.Fatal("expected abort")
+	}
+	body, err := os.ReadFile(tr.FilePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(body)
+	for _, want := range []string{
+		"enter Execute",
+		`"loggerName":"retrying"`,
+		"decision=retry",
+		"decision=continue",
+		"decision=abort",
+		"attempt=1",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in %s", want, s)
+		}
 	}
 }

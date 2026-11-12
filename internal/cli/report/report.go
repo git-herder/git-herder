@@ -13,6 +13,7 @@ import (
 	"github.com/Snowbridge/git-herder/internal/appexit"
 	"github.com/Snowbridge/git-herder/internal/cli"
 	"github.com/Snowbridge/git-herder/internal/diag/console"
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/report"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
@@ -73,7 +74,9 @@ func NormalizeArgs(args []string) []string {
 	return out
 }
 
-func run(cmd *cobra.Command, ui *console.UI) error {
+func run(cmd *cobra.Command, ui *console.UI) (err error) {
+	leave := logging.Enter("cmd", cmd.Name())
+	defer func() { leave("err", err) }()
 	rt := cli.ActiveRuntime
 	if rt == nil {
 		return exit1(fmt.Errorf("CLI runtime is not initialized"))
@@ -153,11 +156,13 @@ func run(cmd *cobra.Command, ui *console.UI) error {
 	return nil
 }
 
-func prepareOutput(settings cli.ReportSettings) (string, error) {
+func prepareOutput(settings cli.ReportSettings) (path string, err error) {
+	leave := logging.Enter("stdout", settings.Stdout, "jsonPath", settings.JSONPath, "jsonDefault", settings.JSONDefault, "force", settings.Force)
+	defer func() { leave("path", path, "err", err) }()
 	if settings.Stdout {
 		return "", nil
 	}
-	path := settings.JSONPath
+	path = settings.JSONPath
 	if settings.JSONDefault {
 		wd, err := os.Getwd()
 		if err != nil {

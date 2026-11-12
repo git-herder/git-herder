@@ -4,6 +4,7 @@ package conn
 import (
 	"time"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
 )
@@ -21,11 +22,15 @@ type Config struct {
 }
 
 // FromGlobals строит conn из Globals и параметров команды.
-func FromGlobals(g resolved.Globals, perPage int, includeInactive bool) Config {
+func FromGlobals(g resolved.Globals, perPage int, includeInactive bool) (cfg Config) {
+	leave := logging.Enter("upstream", g.Upstream, "host", g.Host, "token", g.Token, "perPage", perPage, "includeInactive", includeInactive)
+	defer func() {
+		leave("upstream", cfg.Upstream, "host", cfg.Host, "token", cfg.Token, "perPage", cfg.PerPage)
+	}()
 	if perPage <= 0 {
 		perPage = scm.DefaultPerPage
 	}
-	return Config{
+	cfg = Config{
 		Upstream:        g.Upstream,
 		Host:            g.Host,
 		Token:           g.Token,
@@ -33,4 +38,5 @@ func FromGlobals(g resolved.Globals, perPage int, includeInactive bool) Config {
 		IncludeInactive: includeInactive,
 		PerPage:         perPage,
 	}
+	return cfg
 }

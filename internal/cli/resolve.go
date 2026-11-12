@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 )
 
@@ -22,8 +23,22 @@ func BuiltinDefaults() resolved.Globals {
 }
 
 // ResolveGlobals вычисляет итоговые значения; profileDoc nil — профиль не загружен.
-func ResolveGlobals(cmd *cobra.Command, profileDoc map[string]any, leafCommandName string) (resolved.Globals, error) {
-	out := BuiltinDefaults()
+func ResolveGlobals(cmd *cobra.Command, profileDoc map[string]any, leafCommandName string) (out resolved.Globals, err error) {
+	leave := logging.Enter("leaf", leafCommandName)
+	defer func() {
+		leave(
+			"verbose", out.Verbose,
+			"debug", out.Debug,
+			"retries", out.RetriesNumber,
+			"onError", out.OnError,
+			"workspace", out.Workspace,
+			"upstream", out.Upstream,
+			"host", out.Host,
+			"token", out.Token,
+			"err", err,
+		)
+	}()
+	out = BuiltinDefaults()
 	flags := cmd.Root().PersistentFlags()
 
 	verbose, _ := flags.GetBool("verbose")

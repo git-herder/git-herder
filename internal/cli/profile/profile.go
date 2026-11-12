@@ -13,6 +13,7 @@ import (
 
 	"github.com/Snowbridge/git-herder/internal/appexit"
 	"github.com/Snowbridge/git-herder/internal/diag/console"
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/profilestore"
 	"github.com/Snowbridge/git-herder/internal/redact"
 )
@@ -44,7 +45,9 @@ func Register(root *cobra.Command, store *profilestore.Store) {
 	root.AddCommand(cmd)
 }
 
-func listProfiles(store *profilestore.Store, ui *console.UI) error {
+func listProfiles(store *profilestore.Store, ui *console.UI) (err error) {
+	leave := logging.Enter("dir", store.Dir())
+	defer func() { leave("err", err) }()
 	names, err := store.ListYAMLNames()
 	if err != nil {
 		return err
@@ -71,7 +74,9 @@ func listProfiles(store *profilestore.Store, ui *console.UI) error {
 	return nil
 }
 
-func showProfile(_ *cobra.Command, store *profilestore.Store, ui *console.UI, name string) error {
+func showProfile(_ *cobra.Command, store *profilestore.Store, ui *console.UI, name string) (err error) {
+	leave := logging.Enter("name", name)
+	defer func() { leave("err", err) }()
 	if err := profilestore.ValidateProfileName(name); err != nil {
 		ui.Error(err.Error())
 		return errExit1(err)
@@ -104,24 +109,7 @@ func useCmd(store *profilestore.Store, ui *console.UI) *cobra.Command {
 		Short: "Set the default profile pointer",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			name := args[0]
-			if err := profilestore.ValidateProfileName(name); err != nil {
-				ui.Error(err.Error())
-				return errExit1(err)
-			}
-			ok, err := store.Exists(name)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				ui.Error(fmt.Sprintf("Profile %q not found", name))
-				return errExit1(fmt.Errorf("profile not found"))
-			}
-			if err := store.WriteDefault(name); err != nil {
-				return err
-			}
-			ui.Success(fmt.Sprintf("Default profile set to %q", name))
-			return nil
+			return useProfile(store, ui, args[0])
 		},
 	}
 }
@@ -134,29 +122,7 @@ func createCmd(store *profilestore.Store, ui *console.UI) *cobra.Command {
 		Short: "Create a new profile file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			name := args[0]
-			if from != "" {
-				if err := store.CopyFrom(name, from); err != nil {
-					ui.Error(err.Error())
-					if errors.Is(err, profilestore.ErrConfig) {
-						return errExit1(err)
-					}
-					return err
-				}
-			} else {
-				if err := store.CreateEmpty(name); err != nil {
-					ui.Error(err.Error())
-					if errors.Is(err, profilestore.ErrConfig) {
-						return errExit1(err)
-					}
-					return err
-				}
-			}
-			if edit {
-				return runEdit(c, store, ui, name)
-			}
-			ui.Success(fmt.Sprintf("Profile %q created", name))
-			return nil
+			return createProfile(c, store, ui, args[0], from, edit)
 		},
 	}
 	cmd.Flags().StringVar(&from, "from", "", "Copy from an existing profile")
@@ -170,39 +136,7 @@ func dropCmd(store *profilestore.Store, ui *console.UI) *cobra.Command {
 		Short: "Delete a profile file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			name := args[0]
-			if err := profilestore.ValidateProfileName(name); err != nil {
-				ui.Error(err.Error())
-				return errExit1(err)
-			}
-			ok, err := store.Exists(name)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				ui.Error(fmt.Sprintf("Profile %q not found", name))
-				return errExit1(fmt.Errorf("profile not found"))
-			}
-			def, err := store.ReadDefaultName()
-			if err != nil {
-				return err
-			}
-			if def == name {
-				ui.Error("Cannot drop the current default profile; run profile use with another name first")
-				return errExit1(fmt.Errorf("cannot drop default profile"))
-			}
-			confirm, err := ui.ConfirmDrop(name)
-			if err != nil {
-				return err
-			}
-			if !confirm {
-				return nil
-			}
-			if err := store.Delete(name); err != nil {
-				return err
-			}
-			ui.Success(fmt.Sprintf("Profile %q deleted", name))
-			return nil
+			return dropProfile(store, ui, args[0])
 		},
 	}
 }
@@ -218,7 +152,93 @@ func editCmd(store *profilestore.Store, ui *console.UI) *cobra.Command {
 	}
 }
 
-func runEdit(_ *cobra.Command, store *profilestore.Store, ui *console.UI, name string) error {
+func useProfile(store *profilestore.Store, ui *console.UI, name string) (err error) {
+	leave := logging.Enter("name", name)
+	defer func() { leave("err", err) }()
+	if err := profilestore.ValidateProfileName(name); err != nil {
+		ui.Error(err.Error())
+		return errExit1(err)
+	}
+	ok, err := store.Exists(name)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		ui.Error(fmt.Sprintf("Profile %q not found", name))
+		return errExit1(fmt.Errorf("profile not found"))
+	}
+	if err := store.WriteDefault(name); err != nil {
+		return err
+	}
+	ui.Success(fmt.Sprintf("Default profile set to %q", name))
+	return nil
+}
+
+func createProfile(cmd *cobra.Command, store *profilestore.Store, ui *console.UI, name, from string, edit bool) (err error) {
+	leave := logging.Enter("name", name, "from", from, "edit", edit)
+	defer func() { leave("err", err) }()
+	if from != "" {
+		if err := store.CopyFrom(name, from); err != nil {
+			ui.Error(err.Error())
+			if errors.Is(err, profilestore.ErrConfig) {
+				return errExit1(err)
+			}
+			return err
+		}
+	} else if err := store.CreateEmpty(name); err != nil {
+		ui.Error(err.Error())
+		if errors.Is(err, profilestore.ErrConfig) {
+			return errExit1(err)
+		}
+		return err
+	}
+	if edit {
+		return runEdit(cmd, store, ui, name)
+	}
+	ui.Success(fmt.Sprintf("Profile %q created", name))
+	return nil
+}
+
+func dropProfile(store *profilestore.Store, ui *console.UI, name string) (err error) {
+	leave := logging.Enter("name", name)
+	defer func() { leave("err", err) }()
+	if err := profilestore.ValidateProfileName(name); err != nil {
+		ui.Error(err.Error())
+		return errExit1(err)
+	}
+	ok, err := store.Exists(name)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		ui.Error(fmt.Sprintf("Profile %q not found", name))
+		return errExit1(fmt.Errorf("profile not found"))
+	}
+	def, err := store.ReadDefaultName()
+	if err != nil {
+		return err
+	}
+	if def == name {
+		ui.Error("Cannot drop the current default profile; run profile use with another name first")
+		return errExit1(fmt.Errorf("cannot drop default profile"))
+	}
+	confirm, err := ui.ConfirmDrop(name)
+	if err != nil {
+		return err
+	}
+	if !confirm {
+		return nil
+	}
+	if err := store.Delete(name); err != nil {
+		return err
+	}
+	ui.Success(fmt.Sprintf("Profile %q deleted", name))
+	return nil
+}
+
+func runEdit(_ *cobra.Command, store *profilestore.Store, ui *console.UI, name string) (err error) {
+	leave := logging.Enter("name", name)
+	defer func() { leave("err", err) }()
 	if err := profilestore.ValidateProfileName(name); err != nil {
 		ui.Error(err.Error())
 		return errExit1(err)

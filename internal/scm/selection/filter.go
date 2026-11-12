@@ -5,51 +5,60 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
 )
 
 // Filter применяет клиентские условия --q* текущего upstream.
-func Filter(up resolved.Upstream, cards []card.Card, crit scm.Criteria) []card.Card {
+func Filter(up resolved.Upstream, cards []card.Card, crit scm.Criteria) (out []card.Card) {
+	leave := logging.Enter("upstream", up, "in", len(cards), "search", crit.Search)
+	defer func() { leave("out", len(out)) }()
 	if crit.Search {
 		return cards
 	}
-	out := make([]card.Card, 0, len(cards))
+	out = make([]card.Card, 0, len(cards))
 	for _, c := range cards {
-		if matchCard(up, c, crit) {
-			out = append(out, c)
+		if reason := dropReason(up, c, crit); reason != "" {
+			logging.Debug("filter drop", "fullName", c.FullName(), "reason", reason)
+			continue
 		}
+		out = append(out, c)
 	}
 	return out
 }
 
 func matchCard(up resolved.Upstream, c card.Card, crit scm.Criteria) bool {
+	return dropReason(up, c, crit) == ""
+}
+
+func dropReason(up resolved.Upstream, c card.Card, crit scm.Criteria) string {
 	switch up {
 	case resolved.UpstreamGitLab:
 		for _, p := range crit.Paths {
 			if !matchText(p, c.Path) {
-				return false
+				return "path"
 			}
 		}
 		for _, n := range crit.Names {
 			if !matchText(n, c.Name) {
-				return false
+				return "name"
 			}
 		}
 		for _, t := range crit.Tags {
 			if t.Absent && hasLabel(c.Labels, t.Name) {
-				return false
+				return "tag"
 			}
 		}
 	case resolved.UpstreamGitHub:
 		for _, t := range crit.Tags {
 			present := hasLabel(c.Labels, t.Name)
 			if t.Absent && present {
-				return false
+				return "tag"
 			}
 			if !t.Absent && !present {
-				return false
+				return "tag"
 			}
 		}
 	}
@@ -58,10 +67,10 @@ func matchCard(up resolved.Upstream, c card.Card, crit scm.Criteria) bool {
 			continue
 		}
 		if !matchAttr(c.Properties, a) {
-			return false
+			return "attr"
 		}
 	}
-	return true
+	return ""
 }
 
 func matchText(pattern, value string) bool {

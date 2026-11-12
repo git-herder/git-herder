@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 )
 
 const minCreateYAML = "root: {}\n"
@@ -75,7 +77,9 @@ func ValidateProfileName(name string) error {
 }
 
 // ListYAMLNames возвращает имена *.yaml (не .yml), отсортированные лексикографически.
-func (s *Store) ListYAMLNames() ([]string, error) {
+func (s *Store) ListYAMLNames() (names []string, err error) {
+	leave := logging.Enter("dir", s.dir)
+	defer func() { leave("names", names, "err", err) }()
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -83,7 +87,6 @@ func (s *Store) ListYAMLNames() ([]string, error) {
 		}
 		return nil, err
 	}
-	var names []string
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -146,12 +149,13 @@ func (s *Store) ParseYAML(data []byte) error {
 }
 
 // ReadYAMLMap читает профиль в map для маскировки и резолва.
-func (s *Store) ReadYAMLMap(name string) (map[string]any, error) {
+func (s *Store) ReadYAMLMap(name string) (doc map[string]any, err error) {
+	leave := logging.Enter("name", name, "path", s.profilePath(name))
+	defer func() { leave("err", err) }()
 	b, err := s.ReadYAMLBytes(name)
 	if err != nil {
 		return nil, err
 	}
-	var doc map[string]any
 	if err := yaml.Unmarshal(b, &doc); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrConfig, err)
 	}
@@ -159,7 +163,9 @@ func (s *Store) ReadYAMLMap(name string) (map[string]any, error) {
 }
 
 // WriteDefault записывает файл default.
-func (s *Store) WriteDefault(name string) error {
+func (s *Store) WriteDefault(name string) (err error) {
+	leave := logging.Enter("name", name, "path", filepath.Join(s.dir, "default"))
+	defer func() { leave("err", err) }()
 	if err := s.EnsureDir(); err != nil {
 		return err
 	}
@@ -168,7 +174,9 @@ func (s *Store) WriteDefault(name string) error {
 }
 
 // CreateEmpty создаёт профиль root: {}.
-func (s *Store) CreateEmpty(name string) error {
+func (s *Store) CreateEmpty(name string) (err error) {
+	leave := logging.Enter("name", name, "path", s.profilePath(name))
+	defer func() { leave("err", err) }()
 	if err := ValidateProfileName(name); err != nil {
 		return err
 	}
@@ -186,7 +194,9 @@ func (s *Store) CreateEmpty(name string) error {
 }
 
 // CopyFrom копирует существующий профиль.
-func (s *Store) CopyFrom(name, from string) error {
+func (s *Store) CopyFrom(name, from string) (err error) {
+	leave := logging.Enter("name", name, "from", from, "path", s.profilePath(name))
+	defer func() { leave("err", err) }()
 	if err := ValidateProfileName(name); err != nil {
 		return err
 	}
@@ -215,7 +225,9 @@ func (s *Store) CopyFrom(name, from string) error {
 }
 
 // Delete удаляет <name>.yaml.
-func (s *Store) Delete(name string) error {
+func (s *Store) Delete(name string) (err error) {
+	leave := logging.Enter("name", name, "path", s.profilePath(name))
+	defer func() { leave("err", err) }()
 	return os.Remove(s.profilePath(name))
 }
 
@@ -238,6 +250,8 @@ func (s *Store) profilePath(name string) string {
 
 // LoadForResolve загружает профиль по имени или default; валидирует семантику root SCM-ключей.
 func (s *Store) LoadForResolve(explicitProfile string) (profileName string, doc map[string]any, err error) {
+	leave := logging.Enter("explicit", explicitProfile, "dir", s.dir)
+	defer func() { leave("profile", profileName, "err", err) }()
 	name := strings.TrimSpace(explicitProfile)
 	if name == "" {
 		name, err = s.ReadDefaultName()

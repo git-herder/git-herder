@@ -21,8 +21,8 @@ import (
 
 // Trace — фасад журнала выполнения на один запуск процесса.
 type Trace struct {
-	logger *slog.Logger
-	file   *os.File
+	logger  *slog.Logger
+	file    *os.File
 	verbose bool
 	debug   bool
 	mu      sync.Mutex
@@ -59,12 +59,21 @@ func (t *Trace) Logger(name string) *slog.Logger {
 	return t.logger.With("loggerName", name)
 }
 
-// Close закрывает файл журнала.
+// Close закрывает файл журнала и снимает привязку, если она указывает на t.
 func (t *Trace) Close() error {
+	Unbind(t)
 	if t.file == nil {
 		return nil
 	}
 	return t.file.Close()
+}
+
+// FilePath — путь файла журнала. CLI пользователю его не показывает.
+func (t *Trace) FilePath() string {
+	if t == nil || t.file == nil {
+		return ""
+	}
+	return t.file.Name()
 }
 
 // InfoStartCommand пишет стартовые записи INFO для команды.

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/retrying"
 	"github.com/Snowbridge/git-herder/internal/scm"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
@@ -25,7 +26,13 @@ func NewPropertiesEnricher(transport *scmhttp.Transport, baseURL string) *Proper
 
 func (e *PropertiesEnricher) ID() string { return "properties" }
 
-func (e *PropertiesEnricher) Apply(ctx context.Context, c *card.Card) error {
+func (e *PropertiesEnricher) Apply(ctx context.Context, c *card.Card) (err error) {
+	fullName := ""
+	if c != nil {
+		fullName = c.FullName()
+	}
+	leave := logging.Enter("ctx", ctx, "id", e.ID(), "fullName", fullName)
+	defer func() { leave("err", err) }()
 	owner, repo, ok := strings.Cut(c.UID.String(), "/")
 	if !ok || owner == "" || repo == "" {
 		return &retrying.AbortError{Err: errBrokenUID(c.UID.String())}

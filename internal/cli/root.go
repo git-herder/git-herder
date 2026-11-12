@@ -90,6 +90,7 @@ func bootstrapRun(cmd *cobra.Command, store *profilestore.Store) error {
 		if err != nil {
 			return err
 		}
+		logging.Bind(trace)
 		globals := BuiltinDefaults()
 		globals.Verbose = verbose
 		globals.Debug = debug
@@ -123,6 +124,7 @@ func bootstrapRun(cmd *cobra.Command, store *profilestore.Store) error {
 	if err != nil {
 		return err
 	}
+	logging.Bind(trace)
 	ActiveRuntime = &Runtime{Trace: trace, Store: store, Globals: globals, ProfileDoc: doc}
 	log := trace.Logger("cli.run")
 	trace.InfoStartCommand(log, profileLabel, strings.Join(os.Args, " "))

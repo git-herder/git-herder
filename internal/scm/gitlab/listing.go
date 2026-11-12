@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
@@ -60,7 +61,9 @@ func (b *listingBuilder) SetAttribute(name, value string) scm.ListingBuilder {
 	return b
 }
 
-func (b *listingBuilder) Build() (scm.Listing, error) {
+func (b *listingBuilder) Build() (out scm.Listing, err error) {
+	leave := logging.Enter("tags", b.tags, "attrs", len(b.attrs))
+	defer func() { leave("err", err) }()
 	return &listing{
 		transport: b.transport,
 		baseURL:   b.cfg.Host,
@@ -83,14 +86,18 @@ type listing struct {
 	totalPages int
 }
 
-func (l *listing) PagesCount(ctx context.Context) (int, error) {
+func (l *listing) PagesCount(ctx context.Context) (n int, err error) {
+	leave := logging.Enter("ctx", ctx)
+	defer func() { leave("pages", n, "err", err) }()
 	if err := l.ensurePages(ctx); err != nil {
 		return 0, err
 	}
 	return l.totalPages, nil
 }
 
-func (l *listing) Repositories(ctx context.Context, page int) ([]card.Card, error) {
+func (l *listing) Repositories(ctx context.Context, page int) (cards []card.Card, err error) {
+	leave := logging.Enter("ctx", ctx, "page", page)
+	defer func() { leave("cards", cards, "err", err) }()
 	if page < 1 {
 		return nil, fmt.Errorf("page %d out of range", page)
 	}

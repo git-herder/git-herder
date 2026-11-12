@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/scm"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
 	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
@@ -34,7 +35,13 @@ func NewPropertiesEnricher(transport *scmhttp.Transport, baseURL string) *Proper
 
 func (e *LabelsEnricher) ID() string { return "labels" }
 
-func (e *LabelsEnricher) Apply(ctx context.Context, c *card.Card) error {
+func (e *LabelsEnricher) Apply(ctx context.Context, c *card.Card) (err error) {
+	fullName := ""
+	if c != nil {
+		fullName = c.FullName()
+	}
+	leave := logging.Enter("ctx", ctx, "id", e.ID(), "fullName", fullName)
+	defer func() { leave("err", err) }()
 	id, ok := c.UID.Number()
 	if !ok {
 		return &scm.HTTPError{Status: 0, What: "gitlab labels: uid is not numeric"}
@@ -71,7 +78,13 @@ func (e *LabelsEnricher) Apply(ctx context.Context, c *card.Card) error {
 
 func (e *PropertiesEnricher) ID() string { return "properties" }
 
-func (e *PropertiesEnricher) Apply(ctx context.Context, c *card.Card) error {
+func (e *PropertiesEnricher) Apply(ctx context.Context, c *card.Card) (err error) {
+	fullName := ""
+	if c != nil {
+		fullName = c.FullName()
+	}
+	leave := logging.Enter("ctx", ctx, "id", e.ID(), "fullName", fullName)
+	defer func() { leave("err", err) }()
 	id, ok := c.UID.Number()
 	if !ok {
 		return &scm.HTTPError{Status: 0, What: "gitlab properties: uid is not numeric"}

@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 )
 
 // ErrRateLimit — политика abort при нулевом остатке квоты.
@@ -79,13 +81,20 @@ func (t *Transport) waitIfExhausted() error {
 		return nil
 	}
 	if t.policy == LimitAbort {
+		logging.Debug("quota wait", "remaining", 0, "reset", t.quota.Reset, "policy", "abort", "sleep", time.Duration(0))
 		return ErrRateLimit
 	}
 	now, sleep := t.clock()
 	if t.quota.Reset.IsZero() {
+		logging.Debug("quota wait", "remaining", 0, "reset", t.quota.Reset, "policy", "await", "sleep", time.Duration(0))
 		return nil
 	}
 	d := t.quota.Reset.Sub(now())
+	sleepFor := time.Duration(0)
+	if d > 0 {
+		sleepFor = d
+	}
+	logging.Debug("quota wait", "remaining", 0, "reset", t.quota.Reset, "policy", "await", "sleep", sleepFor)
 	if d > 0 {
 		if t.onWait != nil {
 			t.onWait(t.quota.Reset)
@@ -96,12 +105,16 @@ func (t *Transport) waitIfExhausted() error {
 }
 
 // GetURL выполняет GET по абсолютному URL (пагинация rel=next).
-func (t *Transport) GetURL(ctx context.Context, rawURL string) (Response, error) {
+func (t *Transport) GetURL(ctx context.Context, rawURL string) (resp Response, err error) {
+	leave := logging.Enter("ctx", ctx, "url", rawURL)
+	defer func() { leave("status", resp.Status, "bodyLen", len(resp.Body), "err", err) }()
 	return t.do(ctx, rawURL)
 }
 
 // Get выполняет GET baseURL+path с query-параметрами.
-func (t *Transport) Get(ctx context.Context, baseURL, path string, query url.Values) (Response, error) {
+func (t *Transport) Get(ctx context.Context, baseURL, path string, query url.Values) (resp Response, err error) {
+	leave := logging.Enter("ctx", ctx, "baseURL", baseURL, "path", path, "query", query)
+	defer func() { leave("status", resp.Status, "bodyLen", len(resp.Body), "err", err) }()
 	base := strings.TrimRight(baseURL, "/")
 	p := strings.TrimLeft(path, "/")
 	rawURL := base + "/" + p
@@ -124,15 +137,19 @@ func (t *Transport) do(ctx context.Context, rawURL string) (Response, error) {
 	if t.token != "" {
 		req.Header.Set("Authorization", "Bearer "+t.token)
 	}
+	logging.Debug("http request", "method", req.Method, "url", rawURL, "headers", req.Header, "bodyLen", 0, "body", "")
 	resp, err := t.client.Do(req)
 	if err != nil {
+		logging.Debug("http response", "url", rawURL, "err", err, "bodyLen", 0, "body", "")
 		return Response{}, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		logging.Debug("http response", "url", rawURL, "status", resp.StatusCode, "err", err, "bodyLen", 0, "body", "")
 		return Response{}, err
 	}
+	logging.Debug("http response", "status", resp.StatusCode, "headers", resp.Header, "bodyLen", len(body), "body", body, "err", error(nil))
 	out := Response{
 		Status:     resp.StatusCode,
 		Body:       body,

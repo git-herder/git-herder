@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/retrying"
 	"github.com/Snowbridge/git-herder/internal/scm"
@@ -23,7 +24,9 @@ type Options struct {
 
 // Run выполняет отбор и возвращает карточки после клиентской фильтрации.
 // При --on-error=continue и ошибке страницы листинга результат пустой.
-func Run(ctx context.Context, f *factory.ClientFactory, cfg conn.Config, crit scm.Criteria, opt Options) ([]card.Card, error) {
+func Run(ctx context.Context, f *factory.ClientFactory, cfg conn.Config, crit scm.Criteria, opt Options) (cards []card.Card, err error) {
+	leave := logging.Enter("ctx", ctx, "host", cfg.Host, "upstream", cfg.Upstream, "search", crit.Search, "retries", opt.Retries, "onError", opt.OnError)
+	defer func() { leave("cards", cards, "err", err) }()
 	if opt.Meter == nil {
 		opt.Meter = NopMeter{}
 	}
@@ -39,7 +42,7 @@ func Run(ctx context.Context, f *factory.ClientFactory, cfg conn.Config, crit sc
 	if crit.Search {
 		fatalList = nil
 	}
-	cards, err := listAll(ctx, listing, opt.Retries, policy, fatalList, opt.Meter, cfg.Upstream, crit)
+	cards, err = listAll(ctx, listing, opt.Retries, policy, fatalList, opt.Meter, cfg.Upstream, crit)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +81,9 @@ func listAll(ctx context.Context, listing scm.Listing, retries int, policy retry
 	failed, err := retrying.Execute(ids, retries, policy, fatal, func(page int) error {
 		cards, err := listing.Repositories(ctx, page)
 		if err != nil {
-			return wrapList403(up, crit, err)
+			err = wrapList403(up, crit, err)
+			logging.Debug("listing page", "page", page, "err", err)
+			return err
 		}
 		slots[page] = cards
 		meter.Advance()
@@ -115,10 +120,12 @@ func enrichAll(ctx context.Context, cards []card.Card, jobs []scm.Enricher, retr
 	defer meter.Stop()
 	_, err := retrying.Execute(work, retries, policy, nil, func(p pair) error {
 		err := p.job.Apply(ctx, &cards[p.idx])
-		if err == nil {
-			meter.Advance()
+		if err != nil {
+			logging.Debug("enrich", "id", p.job.ID(), "fullName", cards[p.idx].FullName(), "err", err)
+			return err
 		}
-		return err
+		meter.Advance()
+		return nil
 	})
 	return err
 }

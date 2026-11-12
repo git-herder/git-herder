@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/scm"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
 	"github.com/Snowbridge/git-herder/internal/scm/conn"
@@ -15,7 +16,9 @@ import (
 )
 
 // NewSearchListing строит listing ветки --scm-search (GET /search).
-func NewSearchListing(transport *scmhttp.Transport, cfg conn.Config, pairs []scm.SearchPair) (scm.Listing, error) {
+func NewSearchListing(transport *scmhttp.Transport, cfg conn.Config, pairs []scm.SearchPair) (out scm.Listing, err error) {
+	leave := logging.Enter("host", cfg.Host, "pairs", len(pairs))
+	defer func() { leave("err", err) }()
 	perPage := cfg.PerPage
 	if perPage <= 0 {
 		perPage = scm.DefaultPerPage
@@ -45,14 +48,18 @@ type searchListing struct {
 	totalPages int
 }
 
-func (l *searchListing) PagesCount(ctx context.Context) (int, error) {
+func (l *searchListing) PagesCount(ctx context.Context) (n int, err error) {
+	leave := logging.Enter("ctx", ctx)
+	defer func() { leave("pages", n, "err", err) }()
 	if err := l.ensure(ctx); err != nil {
 		return 0, err
 	}
 	return l.totalPages, nil
 }
 
-func (l *searchListing) Repositories(ctx context.Context, page int) ([]card.Card, error) {
+func (l *searchListing) Repositories(ctx context.Context, page int) (cards []card.Card, err error) {
+	leave := logging.Enter("ctx", ctx, "page", page)
+	defer func() { leave("cards", cards, "err", err) }()
 	if page < 1 {
 		return nil, fmt.Errorf("page %d out of range", page)
 	}

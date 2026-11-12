@@ -7,11 +7,14 @@ import (
 	"os"
 	"sort"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
 )
 
 // WriteStdout пишет по строке на репозиторий: полное имя, таб, url.
-func WriteStdout(cards []card.Card) error {
+func WriteStdout(cards []card.Card) (err error) {
+	leave := logging.Enter("count", len(cards))
+	defer func() { leave("err", err) }()
 	sorted := sortedCopy(cards)
 	var buf bytes.Buffer
 	for _, c := range sorted {
@@ -20,12 +23,14 @@ func WriteStdout(cards []card.Card) error {
 		buf.WriteString(c.URL)
 		buf.WriteByte('\n')
 	}
-	_, err := os.Stdout.Write(buf.Bytes())
+	_, err = os.Stdout.Write(buf.Bytes())
 	return err
 }
 
 // WriteJSON записывает один JSON-массив карточек.
-func WriteJSON(path string, cards []card.Card) error {
+func WriteJSON(path string, cards []card.Card) (err error) {
+	leave := logging.Enter("path", path, "count", len(cards))
+	defer func() { leave("err", err) }()
 	sorted := sortedCopy(cards)
 	payload := make([]card.Card, len(sorted))
 	for i := range sorted {

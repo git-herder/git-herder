@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Snowbridge/git-herder/internal/diag/logging"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
 )
@@ -23,8 +24,20 @@ type ReportSettings struct {
 }
 
 // ResolveReport собирает опции report и SCM-отбора из argv и профиля.
-func ResolveReport(cmd *cobra.Command, doc map[string]any) (ReportSettings, error) {
-	var out ReportSettings
+func ResolveReport(cmd *cobra.Command, doc map[string]any) (out ReportSettings, err error) {
+	leave := logging.Enter("leaf", cmd.Name())
+	defer func() {
+		leave(
+			"stdout", out.Stdout,
+			"jsonPath", out.JSONPath,
+			"jsonDefault", out.JSONDefault,
+			"force", out.Force,
+			"search", out.Criteria.Search,
+			"paths", out.Criteria.Paths,
+			"names", out.Criteria.Names,
+			"err", err,
+		)
+	}()
 	out.Criteria.Scope = resolved.SelectionScopeAffiliated
 	flags := cmd.Flags()
 	leaf := cmd.Name()

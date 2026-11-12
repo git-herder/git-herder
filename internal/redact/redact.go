@@ -10,15 +10,15 @@ import (
 const mask = "***"
 
 var (
-	tokenFlag = regexp.MustCompile(`(?i)(--token(?:=[^\s]+)?|-t(?:=[^\s]+)?\s+\S+|-t[^\s=]\S*)`)
+	tokenFlag  = regexp.MustCompile(`(?i)(--token(?:=[^\s]+)?|-t(?:=[^\s]+)?\s+\S+|-t[^\s=]\S*)`)
 	secretKeys = map[string]struct{}{
-		"token":          {},
-		"password":       {},
-		"private_token":  {},
-		"pat":            {},
-		"authorization":  {},
-		"private-key":    {},
-		"private_key":    {},
+		"token":         {},
+		"password":      {},
+		"private_token": {},
+		"pat":           {},
+		"authorization": {},
+		"private-key":   {},
+		"private_key":   {},
 	}
 )
 
@@ -79,9 +79,18 @@ func MapYAML(v any) any {
 	}
 }
 
-func isSecretKey(k string) bool {
-	_, ok := secretKeys[strings.ToLower(k)]
+// IsSecretKey сообщает, что имя поля или заголовка несёт секрет.
+func IsSecretKey(k string) bool {
+	k = strings.ToLower(strings.TrimSpace(k))
+	if _, ok := secretKeys[k]; ok {
+		return true
+	}
+	_, ok := secretKeys[strings.ReplaceAll(k, "-", "_")]
 	return ok
+}
+
+func isSecretKey(k string) bool {
+	return IsSecretKey(k)
 }
 
 func fmtKey(k any) string {
