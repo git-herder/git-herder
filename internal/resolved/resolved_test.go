@@ -34,7 +34,7 @@ func TestDefaultHost(t *testing.T) {
 	if DefaultHost(UpstreamGitHub) != "https://api.github.com" {
 		t.Fatal(UpstreamGitHub)
 	}
-	if DefaultHost(UpstreamGitLab) != "https://gitlab.com/api/v4" {
+	if DefaultHost(UpstreamGitLab) != "https://gitlab.com" {
 		t.Fatal(UpstreamGitLab)
 	}
 }

@@ -46,7 +46,7 @@ func (e *LabelsEnricher) Apply(ctx context.Context, c *card.Card) (err error) {
 	if !ok {
 		return &scm.HTTPError{Status: 0, What: "gitlab labels: uid is not numeric"}
 	}
-	path := "/projects/" + strconv.FormatInt(id, 10) + "/labels"
+	path := apiV4 + "/projects/" + strconv.FormatInt(id, 10) + "/labels"
 	resp, err := e.transport.Get(ctx, e.baseURL, path, nil)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (e *PropertiesEnricher) Apply(ctx context.Context, c *card.Card) (err error
 	if !ok {
 		return &scm.HTTPError{Status: 0, What: "gitlab properties: uid is not numeric"}
 	}
-	path := "/projects/" + strconv.FormatInt(id, 10) + "/custom_attributes"
+	path := apiV4 + "/projects/" + strconv.FormatInt(id, 10) + "/custom_attributes"
 	resp, err := e.transport.Get(ctx, e.baseURL, path, nil)
 	if err != nil {
 		return err

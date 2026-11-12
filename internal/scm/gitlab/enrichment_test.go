@@ -15,11 +15,11 @@ import (
 func TestEnrichersAndSearch(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/projects/5/labels":
+		case r.URL.Path == "/api/v4/projects/5/labels":
 			_, _ = w.Write([]byte(`[{"name":"a"},{"name":"a"},{"name":""}]`))
-		case r.URL.Path == "/projects/5/custom_attributes":
+		case r.URL.Path == "/api/v4/projects/5/custom_attributes":
 			_, _ = w.Write([]byte(`[{"key":"on","value":"TRUE"},{"key":"when","value":"2026-01-02T03:04:05.000+00:00"},{"key":"s","value":"plain"}]`))
-		case r.URL.Path == "/search":
+		case r.URL.Path == "/api/v4/search":
 			w.Header().Set("X-Total-Pages", "1")
 			_, _ = w.Write([]byte(`[{"id":5,"name":"n","path_with_namespace":"g/n","web_url":"https://gitlab.example/g/n"}]`))
 		default:

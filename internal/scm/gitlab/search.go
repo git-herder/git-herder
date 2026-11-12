@@ -114,5 +114,5 @@ func (l *searchListing) fetch(ctx context.Context, page int) (scmhttp.Response, 
 	}
 	qv.Set("page", strconv.Itoa(page))
 	qv.Set("per_page", strconv.Itoa(l.perPage))
-	return l.transport.Get(ctx, l.baseURL, "/search", qv)
+	return l.transport.Get(ctx, l.baseURL, apiV4+"/search", qv)
 }

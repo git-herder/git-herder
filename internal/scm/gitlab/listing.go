@@ -18,6 +18,9 @@ import (
 	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
 )
 
+// apiV4 — префикс REST относительно base URL инстанса (host), не часть host.
+const apiV4 = "/api/v4"
+
 // NewListingBuilder создаёт билдер GitLab listing.
 func NewListingBuilder(transport *scmhttp.Transport, cfg conn.Config) scm.ListingBuilder {
 	perPage := cfg.PerPage
@@ -131,6 +134,9 @@ func (l *listing) ensurePages(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if resp.Status != 200 {
+		return &scm.HTTPError{Status: resp.Status, What: "gitlab list"}
+	}
 	pages := parseTotalPages(resp.Header.Get("X-Total-Pages"))
 	if pages <= 0 {
 		pages = 1
@@ -172,7 +178,7 @@ func (l *listing) listQuery(page int) url.Values {
 }
 
 func (l *listing) fetchPage(ctx context.Context, page int) (scmhttp.Response, error) {
-	return l.transport.Get(ctx, l.baseURL, "/projects", l.listQuery(page))
+	return l.transport.Get(ctx, l.baseURL, apiV4+"/projects", l.listQuery(page))
 }
 
 func decodeProjects(body []byte) ([]card.Card, error) {

@@ -52,7 +52,7 @@ func DefaultHost(u Upstream) string {
 	case UpstreamGitHub:
 		return "https://api.github.com"
 	case UpstreamGitLab:
-		return "https://gitlab.com/api/v4"
+		return "https://gitlab.com"
 	default:
 		return ""
 	}

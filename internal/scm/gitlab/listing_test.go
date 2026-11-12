@@ -35,6 +35,9 @@ func TestListingQueryAndPages(t *testing.T) {
 	t.Parallel()
 	var gotQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v4/projects" {
+			t.Errorf("path %s", r.URL.Path)
+		}
 		gotQuery = r.URL.RawQuery
 		w.Header().Set("X-Total-Pages", "2")
 		w.Header().Set("Content-Type", "application/json")
@@ -80,6 +83,22 @@ func TestListingQueryAndPages(t *testing.T) {
 	_, err = list.Repositories(ctx, 99)
 	if err == nil {
 		t.Fatal("expected page out of range")
+	}
+}
+
+func TestPagesCountHTTPError(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	tr := scmhttp.NewTransport(srv.Client(), "x")
+	list, err := NewListingBuilder(tr, conn.Config{Host: srv.URL}).Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := list.PagesCount(context.Background()); err == nil {
+		t.Fatal("expected HTTP error")
 	}
 }
 
