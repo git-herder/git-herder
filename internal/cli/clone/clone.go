@@ -176,7 +176,7 @@ func pick(ui *console.UI, cards []card.Card) ([]card.Card, error) {
 	}
 	idx, err := ui.Select(items)
 	if errors.Is(err, console.ErrSelectCancelled) {
-		return nil, exit1(err)
+		return nil, nil
 	}
 	if err != nil {
 		return nil, exit1(err)
