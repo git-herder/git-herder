@@ -24,7 +24,7 @@ import (
 )
 
 func init() {
-	cli.RegisterExtra = Register
+	cli.AddCommand(Register)
 }
 
 // Register добавляет команду report к корню.

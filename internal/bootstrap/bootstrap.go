@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Snowbridge/git-herder/internal/cli"
+	_ "github.com/Snowbridge/git-herder/internal/cli/clone"
 	reportcmd "github.com/Snowbridge/git-herder/internal/cli/report"
 	"github.com/Snowbridge/git-herder/internal/diag/logging"
 )

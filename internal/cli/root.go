@@ -17,8 +17,16 @@ import (
 	"github.com/Snowbridge/git-herder/internal/version"
 )
 
-// RegisterExtra подключает команды из пакетов, которые сами импортируют cli.
-var RegisterExtra func(*cobra.Command)
+// extraCommands — команды, которые пакеты подключают из init.
+var extraCommands []func(*cobra.Command)
+
+// AddCommand регистрирует команду до сборки корня.
+func AddCommand(fn func(*cobra.Command)) {
+	if fn == nil {
+		return
+	}
+	extraCommands = append(extraCommands, fn)
+}
 
 // Runtime — общее состояние запуска (Logger, Store).
 type Runtime struct {
@@ -66,8 +74,8 @@ func NewRootCommand() (*cobra.Command, error) {
 	pf.String("profile", "", "Named YAML profile for this run")
 
 	profilecmd.Register(root, store)
-	if RegisterExtra != nil {
-		RegisterExtra(root)
+	for _, reg := range extraCommands {
+		reg(root)
 	}
 
 	return root, nil

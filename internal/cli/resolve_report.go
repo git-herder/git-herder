@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm"
 )
 
@@ -38,94 +37,11 @@ func ResolveReport(cmd *cobra.Command, doc map[string]any) (out ReportSettings, 
 			"err", err,
 		)
 	}()
-	out.Criteria.Scope = resolved.SelectionScopeAffiliated
 	flags := cmd.Flags()
 	leaf := cmd.Name()
-
-	paths, err := resolveStringList(flags, cmd, doc, leaf, "qp")
+	out.Criteria, err = resolveCriteria(flags, cmd, doc, leaf)
 	if err != nil {
 		return out, err
-	}
-	names, err := resolveStringList(flags, cmd, doc, leaf, "qn")
-	if err != nil {
-		return out, err
-	}
-	rawTags, err := resolveStringList(flags, cmd, doc, leaf, "qt")
-	if err != nil {
-		return out, err
-	}
-	rawAttrs, err := resolveStringList(flags, cmd, doc, leaf, "qa")
-	if err != nil {
-		return out, err
-	}
-	out.Criteria.Paths = paths
-	out.Criteria.Names = names
-	for _, raw := range rawTags {
-		tag, err := scm.ParseTag(raw)
-		if err != nil {
-			return out, err
-		}
-		out.Criteria.Tags = append(out.Criteria.Tags, tag)
-	}
-	for _, raw := range rawAttrs {
-		attr, err := scm.ParseAttr(raw)
-		if err != nil {
-			return out, err
-		}
-		out.Criteria.Attrs = append(out.Criteria.Attrs, attr)
-	}
-
-	searchRaw, searchSet, err := resolveSearch(flags, cmd, doc, leaf)
-	if err != nil {
-		return out, err
-	}
-	if searchSet {
-		pairs, err := scm.ParseSearch(searchRaw)
-		if err != nil {
-			return out, err
-		}
-		out.Criteria.Search = true
-		out.Criteria.SearchPairs = pairs
-	}
-
-	scopeRaw, scopeSet, err := resolveOptionalString(flags, cmd, doc, leaf, "scope")
-	if err != nil {
-		return out, err
-	}
-	if scopeSet {
-		scope, err := resolved.ParseSelectionScope(scopeRaw)
-		if err != nil {
-			return out, err
-		}
-		out.Criteria.Scope = scope
-	}
-
-	if flags.Changed("include-inactive") {
-		v, err := flags.GetBool("include-inactive")
-		if err != nil {
-			return out, err
-		}
-		out.Criteria.IncludeInactive = v
-		out.Criteria.IncludeInactiveSet = true
-	} else if v, ok := lookupProfileValue(doc, cmd, leaf, "include-inactive"); ok {
-		b, err := asBool(v)
-		if err != nil {
-			return out, err
-		}
-		out.Criteria.IncludeInactive = b
-		out.Criteria.IncludeInactiveSet = true
-	}
-
-	if flags.Changed("on-limit-exceeded") {
-		v, err := flags.GetString("on-limit-exceeded")
-		if err != nil {
-			return out, err
-		}
-		out.Criteria.OnLimit = strings.TrimSpace(v)
-		out.Criteria.OnLimitSet = true
-	} else if v, ok := lookupProfileValue(doc, cmd, leaf, "on-limit-exceeded"); ok {
-		out.Criteria.OnLimit = strings.TrimSpace(fmt.Sprint(v))
-		out.Criteria.OnLimitSet = true
 	}
 
 	force, err := resolveBoolFlag(flags, "force", cmd, doc, leaf)
