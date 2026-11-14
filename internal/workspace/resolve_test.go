@@ -1,0 +1,289 @@
+package workspace
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/Snowbridge/git-herder/internal/diag/console"
+)
+
+func TestNameAndPath(t *testing.T) {
+	dir := filepath.Clean(filepath.FromSlash("/qwe/rty/uio/dfg/asdsd"))
+	c := Copy{Dir: dir}
+	if c.Name() != "asdsd" {
+		t.Fatalf("name %q", c.Name())
+	}
+	want := filepath.Clean(filepath.FromSlash("/qwe/rty/uio/dfg"))
+	if c.Path() != want {
+		t.Fatalf("path %q", c.Path())
+	}
+}
+
+func TestWalkOrderAndStop(t *testing.T) {
+	root := t.TempDir()
+	makeRepo(t, filepath.Join(root, "a2"))
+	makeRepo(t, filepath.Join(root, "a10"))
+	makeRepo(t, filepath.Join(root, "b", "child"))
+	makeRepo(t, filepath.Join(root, "c"))
+	makeRepo(t, filepath.Join(root, "c", "nested"))
+	makeRepo(t, filepath.Join(root, "d", "sub"))
+	if err := os.WriteFile(filepath.Join(root, "d", "note.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitFile := filepath.Join(root, "notrepo")
+	if err := os.MkdirAll(gitFile, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitFile, ".git"), []byte("gitdir: x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	makeRepo(t, filepath.Join(gitFile, "real"))
+
+	got, err := Resolve(Request{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		filepath.Join(root, "a10"),
+		filepath.Join(root, "a2"),
+		filepath.Join(root, "b", "child"),
+		filepath.Join(root, "c"),
+		filepath.Join(root, "d", "sub"),
+		filepath.Join(root, "notrepo", "real"),
+	}
+	assertDirs(t, got, want)
+}
+
+func TestRootGitIsOnlyCopy(t *testing.T) {
+	root := t.TempDir()
+	makeRepo(t, root)
+	makeRepo(t, filepath.Join(root, "other"))
+	got, err := Resolve(Request{Root: root + string(os.PathSeparator)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertDirs(t, got, []string{filepath.Clean(root)})
+}
+
+func TestSymlinkDirIsNotDescended(t *testing.T) {
+	root := t.TempDir()
+	target := t.TempDir()
+	makeRepo(t, target)
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skip(err)
+	}
+	makeRepo(t, filepath.Join(root, "real"))
+	got, err := Resolve(Request{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertDirs(t, got, []string{filepath.Join(root, "real")})
+}
+
+func TestFiltersAndRegexFallback(t *testing.T) {
+	root := t.TempDir()
+	makeRepo(t, filepath.Join(root, "selalpha", "selteam", "api"))
+	makeRepo(t, filepath.Join(root, "selalpha", "web"))
+	makeRepo(t, filepath.Join(root, "selteam", "api"))
+	makeRepo(t, filepath.Join(root, "selalpha", "selteam", "api2"))
+	makeRepo(t, filepath.Join(root, "selalpha", "selteam", "foo(bar"))
+
+	both, err := Resolve(Request{
+		Root: root,
+		QP:   []string{"selalpha", "selteam"},
+		QN:   []string{"^api$", "i"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertDirs(t, both, []string{filepath.Join(root, "selalpha", "selteam", "api")})
+
+	sub, err := Resolve(Request{Root: root, QN: []string{"("}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertDirs(t, sub, []string{filepath.Join(root, "selalpha", "selteam", "foo(bar")})
+}
+
+func TestKeepDropsAndStops(t *testing.T) {
+	root := t.TempDir()
+	makeRepo(t, filepath.Join(root, "a"))
+	makeRepo(t, filepath.Join(root, "b"))
+	picker := &fakePicker{}
+
+	got, err := Resolve(Request{
+		Root: root,
+		Keep: func(c Copy) (bool, error) { return c.Name() == "b", nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertDirs(t, got, []string{filepath.Join(root, "b")})
+
+	calls := 0
+	got, err = Resolve(Request{
+		Root:        root,
+		Interactive: true,
+		Picker:      picker,
+		Keep: func(Copy) (bool, error) {
+			calls++
+			return false, errors.New("boom")
+		},
+	})
+	if err == nil || err.Error() != "boom" || got != nil {
+		t.Fatalf("got %v err %v", got, err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls %d", calls)
+	}
+	if picker.called {
+		t.Fatal("picker ran after keep error")
+	}
+}
+
+func TestInteractive(t *testing.T) {
+	root := t.TempDir()
+	makeRepo(t, filepath.Join(root, "a"))
+	makeRepo(t, filepath.Join(root, "b"))
+	makeRepo(t, filepath.Join(root, "c"))
+
+	idle := &fakePicker{}
+	got, err := Resolve(Request{Root: root, Picker: idle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if idle.called || len(got) != 3 {
+		t.Fatalf("called %v len %d", idle.called, len(got))
+	}
+
+	idle = &fakePicker{}
+	got, err = Resolve(Request{
+		Root:        root,
+		QN:          []string{"^missing$"},
+		Interactive: true,
+		Picker:      idle,
+	})
+	if err != nil || len(got) != 0 || idle.called {
+		t.Fatalf("got %v err %v called %v", got, err, idle.called)
+	}
+
+	pick := &fakePicker{idx: []int{0, 2}}
+	got, err = Resolve(Request{Root: root, Interactive: true, Picker: pick})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertDirs(t, got, []string{filepath.Join(root, "a"), filepath.Join(root, "c")})
+	if len(pick.items) != 3 || pick.items[1].Text != filepath.Join(root, "b") || pick.items[1].URL != "" {
+		t.Fatalf("items %+v", pick.items)
+	}
+
+	none := &fakePicker{idx: []int{}}
+	got, err = Resolve(Request{Root: root, Interactive: true, Picker: none})
+	if err != nil || len(got) != 0 {
+		t.Fatalf("empty enter got %v err %v", got, err)
+	}
+
+	cancel := &fakePicker{err: console.ErrSelectCancelled}
+	got, err = Resolve(Request{Root: root, Interactive: true, Picker: cancel})
+	if !errors.Is(err, ErrCancelled) || !errors.Is(err, console.ErrSelectCancelled) || got != nil {
+		t.Fatalf("got %v err %v", got, err)
+	}
+
+	unavailable := &fakePicker{err: errors.New("interactive input is not available")}
+	got, err = Resolve(Request{Root: root, Interactive: true, Picker: unavailable})
+	if err == nil || errors.Is(err, ErrCancelled) || got != nil {
+		t.Fatalf("got %v err %v", got, err)
+	}
+
+	_, err = Resolve(Request{Root: root, Interactive: true})
+	if err == nil || err.Error() != "interactive picker is not set" {
+		t.Fatal(err)
+	}
+
+	bad := &fakePicker{idx: []int{-1}}
+	got, err = Resolve(Request{Root: root, Interactive: true, Picker: bad})
+	if err == nil || got != nil {
+		t.Fatalf("got %v err %v", got, err)
+	}
+	bad.idx = []int{9}
+	got, err = Resolve(Request{Root: root, Interactive: true, Picker: bad})
+	if err == nil || got != nil {
+		t.Fatalf("got %v err %v", got, err)
+	}
+}
+
+func TestReadDirErrorDropsPartial(t *testing.T) {
+	root := t.TempDir()
+	makeRepo(t, filepath.Join(root, "a"))
+	if err := os.Mkdir(filepath.Join(root, "denied"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	orig := readDir
+	t.Cleanup(func() { readDir = orig })
+	readDir = func(name string) ([]os.DirEntry, error) {
+		if filepath.Base(name) == "denied" {
+			return nil, os.ErrPermission
+		}
+		return os.ReadDir(name)
+	}
+	got, err := Resolve(Request{Root: root})
+	if err == nil || !errors.Is(err, os.ErrPermission) || got != nil {
+		t.Fatalf("got %v err %v", got, err)
+	}
+
+	missing := filepath.Join(t.TempDir(), "missing")
+	got, err = Resolve(Request{Root: missing})
+	if err == nil || got != nil {
+		t.Fatalf("missing got %v err %v", got, err)
+	}
+}
+
+func TestEmptyWorkspace(t *testing.T) {
+	got, err := Resolve(Request{Root: t.TempDir()})
+	if err != nil || len(got) != 0 {
+		t.Fatalf("got %v err %v", got, err)
+	}
+}
+
+type fakePicker struct {
+	idx    []int
+	err    error
+	called bool
+	items  []console.SelectItem
+}
+
+func (f *fakePicker) Select(items []console.SelectItem) ([]int, error) {
+	f.called = true
+	f.items = items
+	return f.idx, f.err
+}
+
+func makeRepo(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertDirs(t *testing.T, got []Copy, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("len %d want %d (%v)", len(got), len(want), dirsOf(got))
+	}
+	for i := range want {
+		if got[i].Dir != want[i] {
+			t.Fatalf("[%d] %q want %q", i, got[i].Dir, want[i])
+		}
+	}
+}
+
+func dirsOf(copies []Copy) []string {
+	out := make([]string, len(copies))
+	for i, c := range copies {
+		out[i] = c.Dir
+	}
+	return out
+}
