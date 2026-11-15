@@ -1,7 +1,9 @@
-// Пакет http: ScmHttpTransport — обёртка GET-запросов к SCM REST API.
+// Пакет http: ScmHttpTransport — один HTTP-вызов к SCM REST API.
+// GET и POST делят квоту, заголовок Bearer и журнал; повтора здесь нет.
 package http
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -26,7 +28,7 @@ type Response struct {
 	RequestURL string
 }
 
-// Transport выполняет авторизованные GET-запросы к SCM API.
+// Transport выполняет авторизованные запросы к SCM API.
 type Transport struct {
 	client *http.Client
 	token  string
@@ -108,51 +110,71 @@ func (t *Transport) waitIfExhausted() error {
 func (t *Transport) GetURL(ctx context.Context, rawURL string) (resp Response, err error) {
 	leave := logging.Enter("ctx", ctx, "url", rawURL)
 	defer func() { leave("status", resp.Status, "bodyLen", len(resp.Body), "err", err) }()
-	return t.do(ctx, rawURL)
+	return t.do(ctx, http.MethodGet, rawURL, nil)
 }
 
 // Get выполняет GET baseURL+path с query-параметрами.
 func (t *Transport) Get(ctx context.Context, baseURL, path string, query url.Values) (resp Response, err error) {
 	leave := logging.Enter("ctx", ctx, "baseURL", baseURL, "path", path, "query", query)
 	defer func() { leave("status", resp.Status, "bodyLen", len(resp.Body), "err", err) }()
-	base := strings.TrimRight(baseURL, "/")
-	p := strings.TrimLeft(path, "/")
-	rawURL := base + "/" + p
+	rawURL := joinURL(baseURL, path)
 	if len(query) > 0 {
 		rawURL += "?" + query.Encode()
 	}
-	return t.do(ctx, rawURL)
+	return t.do(ctx, http.MethodGet, rawURL, nil)
 }
 
-func (t *Transport) do(ctx context.Context, rawURL string) (Response, error) {
+// Post выполняет POST baseURL+path. Непустое тело уходит как JSON.
+func (t *Transport) Post(ctx context.Context, baseURL, path string, body []byte) (resp Response, err error) {
+	leave := logging.Enter("ctx", ctx, "baseURL", baseURL, "path", path, "bodyLen", len(body))
+	defer func() { leave("status", resp.Status, "bodyLen", len(resp.Body), "err", err) }()
+	return t.do(ctx, http.MethodPost, joinURL(baseURL, path), body)
+}
+
+func joinURL(baseURL, path string) string {
+	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(path, "/")
+}
+
+func (t *Transport) do(ctx context.Context, method, rawURL string, body []byte) (Response, error) {
 	if err := t.waitIfExhausted(); err != nil {
 		return Response{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	var rdr io.Reader
+	if len(body) > 0 {
+		rdr = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, rdr)
 	if err != nil {
 		return Response{}, err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", userAgent)
+	if len(body) > 0 {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if t.token != "" {
 		req.Header.Set("Authorization", "Bearer "+t.token)
 	}
-	logging.Debug("http request", "method", req.Method, "url", rawURL, "headers", req.Header, "bodyLen", 0, "body", "")
+	loggedBody := ""
+	if len(body) > 0 {
+		loggedBody = string(body)
+	}
+	logging.Debug("http request", "method", req.Method, "url", rawURL, "headers", req.Header, "bodyLen", len(body), "body", loggedBody)
 	resp, err := t.client.Do(req)
 	if err != nil {
 		logging.DebugFull("http response", "url", rawURL, "err", err, "bodyLen", 0, "body", "")
 		return Response{}, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logging.DebugFull("http response", "url", rawURL, "status", resp.StatusCode, "err", err, "bodyLen", 0, "body", "")
 		return Response{}, err
 	}
-	logging.DebugFull("http response", "status", resp.StatusCode, "headers", resp.Header, "bodyLen", len(body), "body", body, "err", error(nil))
+	logging.DebugFull("http response", "status", resp.StatusCode, "headers", resp.Header, "bodyLen", len(respBody), "body", respBody, "err", error(nil))
 	out := Response{
 		Status:     resp.StatusCode,
-		Body:       body,
+		Body:       respBody,
 		Header:     resp.Header.Clone(),
 		RequestURL: rawURL,
 	}

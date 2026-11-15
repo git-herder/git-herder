@@ -1,4 +1,5 @@
-// Пакет factory: ScmClientFactory — выбор GitHub/GitLab listing и enrichment по upstream.
+// Пакет factory: ScmClientFactory — выбор GitHub/GitLab listing, enrichment
+// и repository creator по upstream.
 package factory
 
 import (
@@ -67,6 +68,22 @@ func (f *ClientFactory) Open(cfg conn.Config, crit scm.Criteria) (listing scm.Li
 		return nil, nil, err
 	}
 	return listing, f.enrichers(t, cfg, crit), nil
+}
+
+// NewRepositoryCreator возвращает клиент проверки и создания репозитория.
+func (f *ClientFactory) NewRepositoryCreator(cfg conn.Config) (out scm.RepositoryCreator, err error) {
+	leave := logging.Enter("host", cfg.Host, "upstream", cfg.Upstream)
+	defer func() { leave("err", err) }()
+	t := f.scopedTransport(cfg)
+	switch cfg.Upstream {
+	case resolved.UpstreamGitHub:
+		out = github.NewRepositoryManagement(t, cfg.Host)
+	case resolved.UpstreamGitLab:
+		out = gitlab.NewRepositoryManagement(t, cfg.Host)
+	default:
+		err = fmt.Errorf("unsupported upstream %d", cfg.Upstream)
+	}
+	return out, err
 }
 
 // NewListing настраивает билдер выбранного upstream и возвращает ScmListing.

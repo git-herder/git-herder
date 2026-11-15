@@ -41,6 +41,22 @@ func TestNewListingUpstream(t *testing.T) {
 	}
 }
 
+func TestNewRepositoryCreatorUpstream(t *testing.T) {
+	t.Parallel()
+	f := NewClientFactory(nil)
+	c, err := f.NewRepositoryCreator(conn.Config{Upstream: resolved.UpstreamGitHub, Host: "https://api.github.com"})
+	if err != nil || c == nil {
+		t.Fatalf("github creator %v err %v", c, err)
+	}
+	c, err = f.NewRepositoryCreator(conn.Config{Upstream: resolved.UpstreamGitLab, Host: "https://gitlab.com"})
+	if err != nil || c == nil {
+		t.Fatalf("gitlab creator %v err %v", c, err)
+	}
+	if _, err = f.NewRepositoryCreator(conn.Config{Upstream: resolved.UpstreamUnset}); err == nil {
+		t.Fatal("expected unsupported upstream")
+	}
+}
+
 func TestNewListingGitHubNeedsQFragments(t *testing.T) {
 	t.Parallel()
 	f := NewClientFactory(nil)
