@@ -3,6 +3,7 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,31 @@ import (
 	"github.com/Snowbridge/git-herder/internal/scm"
 	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
 )
+
+// PropertyState — исход чтения одного пользовательского атрибута.
+type PropertyState int
+
+const (
+	// PropertyAbsent — элемента нет или value равен null.
+	PropertyAbsent PropertyState = iota
+	// PropertyString — value является JSON-строкой.
+	PropertyString
+	// PropertyNotString — value есть, но это не строка.
+	PropertyNotString
+)
+
+// PropertyValue — результат ReadProperty, если вызов не завершился ошибкой.
+type PropertyValue struct {
+	State PropertyState
+	Value string
+}
+
+// PropertyReader читает одно значение пользовательского атрибута репозитория.
+type PropertyReader interface {
+	ReadProperty(ctx context.Context, owner, repo, property string) (PropertyValue, error)
+}
+
+var _ PropertyReader = (*management)(nil)
 
 // ErrOwnerNotFound — ни организация, ни пользователь с таким login не найдены.
 var ErrOwnerNotFound = errors.New("github owner does not exist")
@@ -99,6 +125,68 @@ func (m *management) Create(ctx context.Context, path, name string) (err error) 
 		return &scm.HTTPError{Status: resp.Status, What: "github repository create"}
 	}
 	return nil
+}
+
+// ReadProperty читает одно значение пользовательского атрибута.
+// Повтора запроса здесь нет. Разбор карточки обогащения не используется.
+func (m *management) ReadProperty(ctx context.Context, owner, repo, property string) (got PropertyValue, err error) {
+	leave := logging.Enter("owner", owner, "repo", repo, "property", property)
+	defer func() { leave("state", got.State, "err", err) }()
+	if err = validateProperty(owner, repo, property); err != nil {
+		return PropertyValue{}, err
+	}
+	path := "repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/properties/values"
+	resp, err := m.transport.Get(ctx, m.baseURL, path, nil)
+	if err != nil {
+		return PropertyValue{}, err
+	}
+	if resp.Status != http.StatusOK {
+		return PropertyValue{}, &scm.HTTPError{Status: resp.Status, What: "github properties"}
+	}
+	return propertyValueFromBody(resp.Body, property)
+}
+
+func validateProperty(owner, repo, property string) error {
+	if err := validateGitHub(owner, repo); err != nil {
+		return err
+	}
+	if property == "" {
+		return fmt.Errorf("%w: github property name must be non-empty", scm.ErrContract)
+	}
+	return nil
+}
+
+func propertyValueFromBody(body []byte, name string) (PropertyValue, error) {
+	var items []struct {
+		Name  string          `json:"property_name"`
+		Value json.RawMessage `json:"value"`
+	}
+	if err := json.Unmarshal(body, &items); err != nil {
+		return PropertyValue{}, fmt.Errorf("github properties: %w", err)
+	}
+	var raw json.RawMessage
+	found := false
+	for _, it := range items {
+		if it.Name == name {
+			raw = it.Value
+			found = true
+		}
+	}
+	if !found {
+		return PropertyValue{State: PropertyAbsent}, nil
+	}
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return PropertyValue{State: PropertyAbsent}, nil
+	}
+	if raw[0] != '"' {
+		return PropertyValue{State: PropertyNotString}, nil
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return PropertyValue{}, fmt.Errorf("github properties: %w", err)
+	}
+	return PropertyValue{State: PropertyString, Value: s}, nil
 }
 
 func (m *management) ownerKind(ctx context.Context, owner string) (ownerKind, error) {

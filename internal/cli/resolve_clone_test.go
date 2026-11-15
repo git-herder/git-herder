@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/Snowbridge/git-herder/internal/resolved"
 )
 
 func cloneCmd() *cobra.Command {
@@ -23,6 +25,7 @@ func cloneCmd() *cobra.Command {
 	fs.BoolP("interactive", "i", false, "")
 	fs.StringArray("git-opts", nil, "")
 	fs.String("protocol", "ssh", "")
+	fs.String("path-attribute", "", "")
 	root.AddCommand(cmd)
 	return cmd
 }
@@ -94,5 +97,56 @@ func TestResolveCloneAndGitOpts(t *testing.T) {
 	}
 	if _, err := ResolveClone(cmd, nil); err == nil {
 		t.Fatal("uppercase protocol")
+	}
+}
+
+func TestResolvePathAttribute(t *testing.T) {
+	cmd := cloneCmd()
+	if err := cmd.ParseFlags([]string{"--qn", "api", "--path-attribute", "workspace-path"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ResolveClone(cmd, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.PathAttributeSet || got.PathAttribute != "workspace-path" {
+		t.Fatalf("%+v", got)
+	}
+
+	cmd = cloneCmd()
+	doc := map[string]any{"clone": map[string]any{"path-attribute": "from-profile"}}
+	got, err = ResolveClone(cmd, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.PathAttributeSet || got.PathAttribute != "from-profile" {
+		t.Fatalf("%+v", got)
+	}
+
+	cmd = cloneCmd()
+	got, err = ResolveClone(cmd, nil)
+	if err != nil || got.PathAttributeSet {
+		t.Fatalf("%v %+v", err, got)
+	}
+
+	cmd = cloneCmd()
+	if err := cmd.ParseFlags([]string{"--path-attribute", "  "}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = ResolveClone(cmd, nil)
+	if err != nil || !got.PathAttributeSet || got.PathAttribute != "" {
+		t.Fatalf("%v %+v", err, got)
+	}
+	if err := ValidatePathAttribute(got.PathAttributeSet, got.PathAttribute, resolved.UpstreamGitHub); err == nil {
+		t.Fatal("empty name")
+	}
+	if err := ValidatePathAttribute(true, "workspace-path", resolved.UpstreamGitLab); err == nil {
+		t.Fatal("gitlab")
+	}
+	if err := ValidatePathAttribute(true, "workspace-path", resolved.UpstreamGitHub); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidatePathAttribute(false, "", resolved.UpstreamGitLab); err != nil {
+		t.Fatal(err)
 	}
 }

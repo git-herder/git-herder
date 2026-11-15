@@ -10,6 +10,7 @@ import (
 	"github.com/Snowbridge/git-herder/internal/diag/console"
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
+	"github.com/Snowbridge/git-herder/internal/scm/github"
 )
 
 func TestCloneSkipFullDir(t *testing.T) {
@@ -28,7 +29,7 @@ func TestCloneSkipFullDir(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(context.Context, []string, string, string) (string, error) {
 		calls++
 		return "", nil
-	}, nil, func(line string) { lines = append(lines, line) })
+	}, nil, func(line string) { lines = append(lines, line) }, "", nil)
 	if err != nil || failed {
 		t.Fatalf("failed=%v err=%v", failed, err)
 	}
@@ -65,7 +66,7 @@ func TestCloneDropAndRetryCleansPartial(t *testing.T) {
 			return "fatal: boom\n", os.ErrInvalid
 		}
 		return "", nil
-	}, func(string) {}, func(line string) { lines = append(lines, line) })
+	}, func(string) {}, func(line string) { lines = append(lines, line) }, "", nil)
 	if err != nil || failed {
 		t.Fatalf("failed=%v err=%v lines=%v", failed, err, lines)
 	}
@@ -95,7 +96,7 @@ func TestCloneFileIsNotQueued(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 2, resolved.OnErrorAbort, func(context.Context, []string, string, string) (string, error) {
 		t.Fatal("git should not run")
 		return "", nil
-	}, nil, func(line string) { lines = append(lines, line) })
+	}, nil, func(line string) { lines = append(lines, line) }, "", nil)
 	if err == nil || !failed || len(lines) != 1 || !strings.Contains(lines[0], "file") {
 		t.Fatalf("failed=%v err=%v lines=%v", failed, err, lines)
 	}
@@ -117,9 +118,123 @@ func TestCloneGitFailureLine(t *testing.T) {
 		Name: "api", Path: "g", URL: "https://example/g/api",
 	}}, false, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(context.Context, []string, string, string) (string, error) {
 		return "\nfatal: denied\n", os.ErrInvalid
-	}, func(string) {}, func(line string) { lines = append(lines, line) })
+	}, func(string) {}, func(line string) { lines = append(lines, line) }, "", nil)
 	if err != nil || !failed || len(lines) != 1 || !strings.Contains(lines[0], "fatal: denied") {
 		t.Fatalf("failed=%v err=%v lines=%v", failed, err, lines)
+	}
+}
+
+type stubProps struct {
+	v     github.PropertyValue
+	err   error
+	calls int
+}
+
+func (s *stubProps) ReadProperty(context.Context, string, string, string) (github.PropertyValue, error) {
+	s.calls++
+	return s.v, s.err
+}
+
+func TestCloneAttributePath(t *testing.T) {
+	ws := t.TempDir()
+	props := &stubProps{v: github.PropertyValue{State: github.PropertyString, Value: `domain\billing`}}
+	var got string
+	failed, err := cloneCards(context.Background(), ws, []card.Card{{
+		Name: "api", Path: "acme", URL: "https://example/acme/api",
+	}}, false, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(_ context.Context, _ []string, _ string, dest string) (string, error) {
+		got = dest
+		return "", nil
+	}, nil, func(string) {}, "workspace-path", props)
+	if err != nil || failed || props.calls != 1 {
+		t.Fatalf("failed=%v err=%v calls=%d", failed, err, props.calls)
+	}
+	want := filepath.Join(ws, "domain", "billing", "api")
+	if got != want {
+		t.Fatalf("got %s want %s", got, want)
+	}
+}
+
+func TestCloneAttributePreserve(t *testing.T) {
+	ws := t.TempDir()
+	props := &stubProps{v: github.PropertyValue{State: github.PropertyString, Value: `domain\billing`}}
+	var got string
+	_, err := cloneCards(context.Background(), ws, []card.Card{{
+		Name: "api", Path: "acme", URL: "https://example/acme/api",
+	}}, true, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(_ context.Context, _ []string, _ string, dest string) (string, error) {
+		got = dest
+		return "", nil
+	}, nil, func(string) {}, "workspace-path", props)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(ws, "acme", "domain", "billing", "api")
+	if got != want {
+		t.Fatalf("got %s want %s", got, want)
+	}
+}
+
+func TestCloneAttributeMissingFallsBack(t *testing.T) {
+	ws := t.TempDir()
+	props := &stubProps{v: github.PropertyValue{State: github.PropertyAbsent}}
+	var got string
+	_, err := cloneCards(context.Background(), ws, []card.Card{{
+		Name: "api", Path: "acme", URL: "https://example/acme/api",
+	}}, false, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(_ context.Context, _ []string, _ string, dest string) (string, error) {
+		got = dest
+		return "", nil
+	}, nil, func(string) {}, "workspace-path", props)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(ws, "acme", "api")
+	if got != want {
+		t.Fatalf("got %s want %s", got, want)
+	}
+}
+
+func TestCloneAttributeReadError(t *testing.T) {
+	ws := t.TempDir()
+	props := &stubProps{err: os.ErrInvalid}
+	var lines []string
+	var calls int
+	failed, err := cloneCards(context.Background(), ws, []card.Card{{
+		Name: "api", Path: "acme", URL: "https://example/acme/api",
+	}}, false, "ssh", existSkip, nil, 1, resolved.OnErrorContinue, func(context.Context, []string, string, string) (string, error) {
+		calls++
+		return "", nil
+	}, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
+	if err != nil || !failed || calls != 0 || props.calls != 2 || len(lines) != 1 || !strings.HasPrefix(lines[0], "✖ ") {
+		t.Fatalf("failed=%v err=%v calls=%d reads=%d lines=%v", failed, err, calls, props.calls, lines)
+	}
+}
+
+func TestCloneAttributeDotDotNotQueued(t *testing.T) {
+	ws := t.TempDir()
+	props := &stubProps{v: github.PropertyValue{State: github.PropertyString, Value: `domain\..\x`}}
+	var lines []string
+	failed, err := cloneCards(context.Background(), ws, []card.Card{{
+		Name: "api", Path: "acme", URL: "https://example/acme/api",
+	}}, false, "ssh", existSkip, nil, 2, resolved.OnErrorAbort, func(context.Context, []string, string, string) (string, error) {
+		t.Fatal("git should not run")
+		return "", nil
+	}, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
+	if err == nil || !failed || props.calls != 1 || len(lines) != 1 {
+		t.Fatalf("failed=%v err=%v reads=%d lines=%v", failed, err, props.calls, lines)
+	}
+}
+
+func TestCloneAttributeBadOwnerNotRead(t *testing.T) {
+	ws := t.TempDir()
+	props := &stubProps{v: github.PropertyValue{State: github.PropertyString, Value: "domain"}}
+	var lines []string
+	failed, err := cloneCards(context.Background(), ws, []card.Card{{
+		Name: "api", Path: "acme/team", URL: "https://example/acme/team/api",
+	}}, false, "ssh", existSkip, nil, 2, resolved.OnErrorContinue, func(context.Context, []string, string, string) (string, error) {
+		t.Fatal("git should not run")
+		return "", nil
+	}, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
+	if err != nil || !failed || props.calls != 0 || len(lines) != 1 {
+		t.Fatalf("failed=%v err=%v reads=%d lines=%v", failed, err, props.calls, lines)
 	}
 }
 

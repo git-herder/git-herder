@@ -255,3 +255,73 @@ func TestCreateNon201(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 }
+
+func TestReadPropertyContractBeforeHTTP(t *testing.T) {
+	t.Parallel()
+	m, hits := newManagement(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+	})
+	for _, call := range []struct{ owner, repo, property string }{
+		{"", "repo", "workspace-path"},
+		{"acme", "", "workspace-path"},
+		{"acme/team", "repo", "workspace-path"},
+		{"acme", "repo", ""},
+	} {
+		if _, err := m.ReadProperty(context.Background(), call.owner, call.repo, call.property); !errors.Is(err, scm.ErrContract) {
+			t.Fatalf("read %q %q %q: %v", call.owner, call.repo, call.property, err)
+		}
+	}
+	if len(*hits) != 0 {
+		t.Fatalf("hits %+v", *hits)
+	}
+}
+
+func TestReadPropertyValues(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		body  string
+		state PropertyState
+		value string
+	}{
+		{name: "string", body: `[{"property_name":"workspace-path","value":"domain\\billing"}]`, state: PropertyString, value: `domain\billing`},
+		{name: "null", body: `[{"property_name":"workspace-path","value":null}]`, state: PropertyAbsent},
+		{name: "missing", body: `[{"property_name":"other","value":"x"}]`, state: PropertyAbsent},
+		{name: "empty", body: `[]`, state: PropertyAbsent},
+		{name: "last", body: `[{"property_name":"workspace-path","value":"old"},{"property_name":"workspace-path","value":"domain/billing"}]`, state: PropertyString, value: "domain/billing"},
+		{name: "number", body: `[{"property_name":"workspace-path","value":3}]`, state: PropertyNotString},
+		{name: "bool", body: `[{"property_name":"workspace-path","value":true}]`, state: PropertyNotString},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m, hits := newManagement(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tc.body))
+			})
+			got, err := m.ReadProperty(context.Background(), "acme", "api", "workspace-path")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.State != tc.state || got.Value != tc.value {
+				t.Fatalf("got %+v", got)
+			}
+			if len(*hits) != 1 || (*hits)[0].method != http.MethodGet || (*hits)[0].path != "/repos/acme/api/properties/values" {
+				t.Fatalf("hits %+v", *hits)
+			}
+		})
+	}
+}
+
+func TestReadPropertyHTTPError(t *testing.T) {
+	t.Parallel()
+	for _, status := range []int{http.StatusNotFound, http.StatusInternalServerError} {
+		m, _ := newManagement(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+		})
+		_, err := m.ReadProperty(context.Background(), "acme", "api", "workspace-path")
+		var he *scm.HTTPError
+		if !errors.As(err, &he) || he.Status != status {
+			t.Fatalf("status %d err %v", status, err)
+		}
+	}
+}

@@ -22,6 +22,7 @@ import (
 	"github.com/Snowbridge/git-herder/internal/scm/card"
 	"github.com/Snowbridge/git-herder/internal/scm/conn"
 	"github.com/Snowbridge/git-herder/internal/scm/factory"
+	"github.com/Snowbridge/git-herder/internal/scm/github"
 	"github.com/Snowbridge/git-herder/internal/scm/selection"
 )
 
@@ -55,6 +56,7 @@ func Register(root *cobra.Command) {
 	fs.BoolP("interactive", "i", false, "Choose repositories from the loaded list")
 	fs.StringArray("git-opts", nil, "One git clone argument per repeat, for example --git-opts=--depth=1")
 	fs.String("protocol", "ssh", "Clone URL protocol: ssh or https")
+	fs.String("path-attribute", "", "GitHub custom property: parent directories of the clone inside the workspace")
 	root.AddCommand(cmd)
 }
 
@@ -82,6 +84,10 @@ func run(cmd *cobra.Command, ui *console.UI) (err error) {
 	}
 	if strings.TrimSpace(g.Token) == "" {
 		err := fmt.Errorf("token is required")
+		ui.Error(err.Error())
+		return exit1(err)
+	}
+	if err := cli.ValidatePathAttribute(settings.PathAttributeSet, settings.PathAttribute, g.Upstream); err != nil {
 		ui.Error(err.Error())
 		return exit1(err)
 	}
@@ -154,9 +160,26 @@ func run(cmd *cobra.Command, ui *console.UI) (err error) {
 			rt.Trace.Logger("cli.clone").Info(redact.String(text), "reason", "git")
 		}
 	}
+	attrName := ""
+	var props propertyReader
+	if settings.PathAttributeSet {
+		attrName = settings.PathAttribute
+		creator, cerr := factory.NewClientFactory(nil).NewRepositoryCreator(cfg)
+		if cerr != nil {
+			ui.Error(cerr.Error())
+			return exit1(cerr)
+		}
+		reader, ok := creator.(github.PropertyReader)
+		if !ok {
+			err := fmt.Errorf("--path-attribute requires github")
+			ui.Error(err.Error())
+			return exit1(err)
+		}
+		props = reader
+	}
 	failed, err := cloneCards(context.Background(), g.Workspace, cards, settings.PreservePath, string(settings.Protocol), pol, settings.GitOpts, g.RetriesNumber, g.OnError, runGit, logf, func(line string) {
 		fmt.Println(line)
-	})
+	}, attrName, props)
 	if err != nil {
 		ui.Error(err.Error())
 		return exit1(err)

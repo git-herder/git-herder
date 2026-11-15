@@ -30,12 +30,14 @@ const (
 
 // CloneSettings — опции команды clone после резолва.
 type CloneSettings struct {
-	Criteria     scm.Criteria
-	Existing     ExistingPolicy
-	Protocol     Protocol
-	PreservePath bool
-	Interactive  bool
-	GitOpts      []string
+	Criteria         scm.Criteria
+	Existing         ExistingPolicy
+	Protocol         Protocol
+	PreservePath     bool
+	Interactive      bool
+	GitOpts          []string
+	PathAttribute    string
+	PathAttributeSet bool
 }
 
 // ResolveClone собирает опции clone и SCM-отбора из argv и профиля.
@@ -85,7 +87,30 @@ func ResolveClone(cmd *cobra.Command, doc map[string]any) (out CloneSettings, er
 	if err != nil {
 		return out, err
 	}
+	rawAttr, attrSet, err := resolveOptionalString(flags, cmd, doc, leaf, "path-attribute")
+	if err != nil {
+		return out, err
+	}
+	if attrSet {
+		out.PathAttribute = strings.TrimSpace(rawAttr)
+		out.PathAttributeSet = true
+	}
 	return out, nil
+}
+
+// ValidatePathAttribute проверяет флаг до запросов к SCM.
+// Не задан — режим выключен. Пустое имя или upstream не github — ошибка.
+func ValidatePathAttribute(set bool, name string, upstream resolved.Upstream) error {
+	if !set {
+		return nil
+	}
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("--path-attribute is empty")
+	}
+	if upstream != resolved.UpstreamGitHub {
+		return fmt.Errorf("--path-attribute requires github")
+	}
+	return nil
 }
 
 func parseExisting(raw string) (ExistingPolicy, error) {

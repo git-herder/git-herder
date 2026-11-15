@@ -11,8 +11,15 @@ import (
 
 	"github.com/Snowbridge/git-herder/internal/resolved"
 	"github.com/Snowbridge/git-herder/internal/retrying"
+	"github.com/Snowbridge/git-herder/internal/scm"
 	"github.com/Snowbridge/git-herder/internal/scm/card"
+	"github.com/Snowbridge/git-herder/internal/scm/github"
 )
+
+// propertyReader — чтение одного атрибута. Реализует github.PropertyReader.
+type propertyReader interface {
+	ReadProperty(ctx context.Context, owner, repo, property string) (github.PropertyValue, error)
+}
 
 const failFallback = "клонирование не удалось"
 
@@ -37,45 +44,73 @@ type cloneJob struct {
 	attempts int
 }
 
-func cloneCards(ctx context.Context, workspace string, cards []card.Card, preserve bool, protocol string, pol resolvedExisting, opts []string, retries int, onError resolved.OnError, git gitFunc, logf func(string), print func(string)) (failed bool, err error) {
+func cloneCards(ctx context.Context, workspace string, cards []card.Card, preserve bool, protocol string, pol resolvedExisting, opts []string, retries int, onError resolved.OnError, git gitFunc, logf func(string), print func(string), attrName string, props propertyReader) (failed bool, err error) {
 	policy := retrying.PolicyContinue
 	if onError == resolved.OnErrorAbort {
 		policy = retrying.PolicyAbort
 	}
 	var jobs []*cloneJob
-	for _, c := range cards {
-		dest, destErr := destination(workspace, c.FullName(), preserve)
+	consider := func(c card.Card, dest string, destErr error) error {
 		if destErr != nil {
 			print(failLine(c.FullName(), destErr.Error()))
 			failed = true
 			if policy == retrying.PolicyAbort {
-				return true, destErr
+				return destErr
 			}
-			continue
+			return nil
 		}
 		kind, statErr := inspect(dest)
 		if statErr != nil {
-			return failed, statErr
+			return statErr
 		}
 		if kind == placeFile {
 			msg := "destination path is a file"
 			print(failLine(c.FullName(), msg))
 			failed = true
 			if policy == retrying.PolicyAbort {
-				return true, fmt.Errorf("%s", msg)
+				return fmt.Errorf("%s", msg)
 			}
-			continue
+			return nil
 		}
 		addr, addrErr := repoURL(c.URL, protocol)
 		if addrErr != nil {
 			print(failLine(c.FullName(), addrErr.Error()))
 			failed = true
 			if policy == retrying.PolicyAbort {
-				return true, addrErr
+				return addrErr
 			}
-			continue
+			return nil
 		}
 		jobs = append(jobs, &cloneJob{card: c, dest: dest, repoURL: addr, place: kind})
+		return nil
+	}
+	if attrName == "" {
+		for _, c := range cards {
+			dest, destErr := destination(workspace, c.FullName(), preserve)
+			if err := consider(c, dest, destErr); err != nil {
+				return true, err
+			}
+		}
+	} else {
+		ready, readFailed, err := readAttributes(ctx, cards, attrName, props, retries, policy, print)
+		if readFailed {
+			failed = true
+		}
+		if err != nil {
+			return true, err
+		}
+		for _, item := range ready {
+			var dest string
+			var destErr error
+			if item.val.State == github.PropertyString {
+				dest, destErr = attributeDestination(workspace, item.card.Path, item.card.Name, item.val.Value, preserve)
+			} else {
+				dest, destErr = destination(workspace, item.card.FullName(), preserve)
+			}
+			if err := consider(item.card, dest, destErr); err != nil {
+				return true, err
+			}
+		}
 	}
 	if len(jobs) == 0 {
 		return failed, nil
@@ -90,6 +125,60 @@ func cloneCards(ctx context.Context, workspace string, cards []card.Card, preser
 		failed = true
 	}
 	return failed, nil
+}
+
+type attrJob struct {
+	card     card.Card
+	val      github.PropertyValue
+	attempts int
+	ok       bool
+}
+
+func readAttributes(ctx context.Context, cards []card.Card, attrName string, props propertyReader, retries int, policy retrying.Policy, print func(string)) (ready []*attrJob, failed bool, err error) {
+	var queued []*attrJob
+	for _, c := range cards {
+		if c.Name == "" || c.Path == "" || strings.Contains(c.Path, "/") {
+			print(failLine(c.FullName(), scm.ErrContract.Error()))
+			failed = true
+			if policy == retrying.PolicyAbort {
+				return nil, true, scm.ErrContract
+			}
+			continue
+		}
+		queued = append(queued, &attrJob{card: c})
+	}
+	if len(queued) == 0 {
+		return nil, failed, nil
+	}
+	n, runErr := retrying.Execute(queued, retries, policy, nil, func(j *attrJob) error {
+		return j.fetch(ctx, props, attrName, retries, print)
+	})
+	if runErr != nil {
+		return nil, true, runErr
+	}
+	if n > 0 {
+		failed = true
+	}
+	for _, j := range queued {
+		if j.ok {
+			ready = append(ready, j)
+		}
+	}
+	return ready, failed, nil
+}
+
+func (j *attrJob) fetch(ctx context.Context, props propertyReader, name string, retries int, print func(string)) error {
+	j.attempts++
+	v, err := props.ReadProperty(ctx, j.card.Path, j.card.Name, name)
+	if err != nil {
+		if j.attempts > retries {
+			print(failLine(j.card.FullName(), err.Error()))
+		}
+		return err
+	}
+	j.val = v
+	j.ok = true
+	return nil
 }
 
 type resolvedExisting int

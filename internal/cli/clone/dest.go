@@ -10,6 +10,44 @@ import (
 // errNoRemainder — полное имя целиком совпало с хвостом workspace.
 var errNoRemainder = fmt.Errorf("destination path is empty after overlap")
 
+// errParentEscape — в значении атрибута есть сегмент «..».
+var errParentEscape = fmt.Errorf("attribute path contains ..")
+
+// attributeDestination собирает каталог из значения пользовательского атрибута.
+// raw делится по / и \. Пустые сегменты и «.» отбрасываются. «..» — ошибка.
+// preserve добавляет сегменты path карточки перед родителями из атрибута.
+func attributeDestination(workspace, repoPath, name, raw string, preserve bool) (string, error) {
+	parents, err := splitAttribute(raw)
+	if err != nil {
+		return "", err
+	}
+	if name == "" {
+		return "", errNoRemainder
+	}
+	parts := []string{workspace}
+	if preserve {
+		parts = append(parts, splitRepo(repoPath)...)
+	}
+	parts = append(parts, parents...)
+	parts = append(parts, name)
+	return filepath.Join(parts...), nil
+}
+
+func splitAttribute(raw string) ([]string, error) {
+	segs := strings.FieldsFunc(raw, isSep)
+	out := make([]string, 0, len(segs))
+	for _, s := range segs {
+		if s == "" || s == "." {
+			continue
+		}
+		if s == ".." {
+			return nil, errParentEscape
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
 func destination(workspace, fullName string, preserve bool) (string, error) {
 	repo := splitRepo(fullName)
 	if len(repo) == 0 {
