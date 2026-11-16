@@ -13,6 +13,26 @@ import (
 	"github.com/Snowbridge/git-herder/internal/diag/logging"
 )
 
+func TestPatchJSON(t *testing.T) {
+	t.Parallel()
+	var method, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method = r.Method
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	tr := NewTransport(srv.Client(), "tok")
+	resp, err := tr.Patch(context.Background(), srv.URL, "repos/acme/api/properties/values", []byte(`{"properties":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Status != http.StatusNoContent || method != http.MethodPatch || gotBody != `{"properties":[]}` {
+		t.Fatalf("status %d method %s body %s", resp.Status, method, gotBody)
+	}
+}
+
 func TestPostJSONAndAbort(t *testing.T) {
 	t.Parallel()
 	var calls int

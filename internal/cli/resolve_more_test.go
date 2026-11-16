@@ -101,6 +101,47 @@ func TestResolveUpstreamFromCLI(t *testing.T) {
 	}
 }
 
+func TestResolveGitHTTPSTokenRootOnly(t *testing.T) {
+	root := &cobra.Command{Use: "root"}
+	root.PersistentFlags().Bool("verbose", false, "")
+	root.PersistentFlags().Bool("debug", false, "")
+	root.PersistentFlags().Int("retries-number", 3, "")
+	root.PersistentFlags().String("on-error", "continue", "")
+	root.PersistentFlags().String("workspace", "/w", "")
+	root.PersistentFlags().String("upstream", "", "")
+	root.PersistentFlags().String("host", "", "")
+	root.PersistentFlags().String("token", "", "")
+	root.PersistentFlags().String("git-https-token", "", "")
+	cmd := &cobra.Command{Use: "publish"}
+	root.AddCommand(cmd)
+	doc := map[string]any{"publish": map[string]any{"git-https-token": "from-cmd"}}
+	g, err := ResolveGlobals(cmd, doc, "publish")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.GitHTTPSToken != "" {
+		t.Fatalf("command block leaked: %q", g.GitHTTPSToken)
+	}
+	doc = map[string]any{"root": map[string]any{"git-https-token": "from-root"}}
+	g, err = ResolveGlobals(cmd, doc, "publish")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.GitHTTPSToken != "from-root" {
+		t.Fatalf("token=%q", g.GitHTTPSToken)
+	}
+	if err := root.PersistentFlags().Set("git-https-token", "from-flag"); err != nil {
+		t.Fatal(err)
+	}
+	g, err = ResolveGlobals(cmd, doc, "publish")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.GitHTTPSToken != "from-flag" {
+		t.Fatalf("token=%q", g.GitHTTPSToken)
+	}
+}
+
 func TestResolveIntFromProfile(t *testing.T) {
 	root := &cobra.Command{Use: "root"}
 	root.PersistentFlags().Int("retries-number", 3, "")

@@ -10,6 +10,7 @@ type Globals struct {
 	Upstream       Upstream
 	Host           string // REST API base URL (как задал пользователь или DefaultHost)
 	Token          string
+	GitHTTPSToken  string
 	ProfileName    string
 	SelectionScope SelectionScope
 }

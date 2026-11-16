@@ -10,23 +10,29 @@ import (
 const mask = "***"
 
 var (
-	tokenFlag  = regexp.MustCompile(`(?i)(--token(?:=[^\s]+)?|-t(?:=[^\s]+)?\s+\S+|-t[^\s=]\S*)`)
-	secretKeys = map[string]struct{}{
-		"token":         {},
-		"password":      {},
-		"private_token": {},
-		"pat":           {},
-		"authorization": {},
-		"private-key":   {},
-		"private_key":   {},
+	tokenFlag   = regexp.MustCompile(`(?i)(--token(?:=[^\s]+)?|-t(?:=[^\s]+)?\s+\S+|-t[^\s=]\S*)`)
+	gitHTTPSArg = regexp.MustCompile(`(?i)--git-https-token(?:=|\s+)\S+`)
+	userinfo    = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)([^/\s@]+)@`)
+	secretKeys  = map[string]struct{}{
+		"token":           {},
+		"git-https-token": {},
+		"git_https_token": {},
+		"password":        {},
+		"private_token":   {},
+		"pat":             {},
+		"authorization":   {},
+		"private-key":     {},
+		"private_key":     {},
 	}
 )
 
-// CommandLine маскирует флаг --token и короткую форму -t в командной строке.
+// CommandLine маскирует флаги --token, -t и --git-https-token в командной строке.
 func CommandLine(argv string) string {
-	out := tokenFlag.ReplaceAllString(argv, "--token="+mask)
+	const placeholder = "\x00githttps\x00"
+	out := gitHTTPSArg.ReplaceAllString(argv, placeholder)
+	out = tokenFlag.ReplaceAllString(out, "--token="+mask)
 	out = regexp.MustCompile(`(?i)-t\s+\S+`).ReplaceAllString(out, "-t "+mask)
-	return out
+	return strings.ReplaceAll(out, placeholder, "--git-https-token="+mask)
 }
 
 // String заменяет известные фрагменты Authorization и query token=.
@@ -37,6 +43,7 @@ func String(s string) string {
 	out := s
 	out = regexp.MustCompile(`(?i)(Authorization[=:]\s*)(\S+)`).ReplaceAllString(out, `${1}`+mask)
 	out = regexp.MustCompile(`(?i)([?&](?:token|password|private_token)=)[^&\s]+`).ReplaceAllString(out, `${1}`+mask)
+	out = userinfo.ReplaceAllString(out, `${1}`+mask+`@`)
 	return out
 }
 

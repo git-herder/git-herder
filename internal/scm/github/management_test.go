@@ -325,3 +325,109 @@ func TestReadPropertyHTTPError(t *testing.T) {
 		}
 	}
 }
+
+func TestPreflight(t *testing.T) {
+	t.Parallel()
+	m, hits := newManagement(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/orgs/acme":
+			w.WriteHeader(http.StatusOK)
+		case "/orgs/acme/properties/schema/workspace-path":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"value_type":"string"}`))
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	})
+	if err := m.Preflight(context.Background(), "acme", "workspace-path"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*hits) != 2 {
+		t.Fatalf("hits %+v", *hits)
+	}
+}
+
+func TestPreflightOrgMissingDoesNotAskUser(t *testing.T) {
+	t.Parallel()
+	m, hits := newManagement(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/orgs/acme" {
+			t.Errorf("unexpected %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})
+	err := m.Preflight(context.Background(), "acme", "workspace-path")
+	if !errors.Is(err, ErrOrgNotFound) {
+		t.Fatal(err)
+	}
+	if len(*hits) != 1 {
+		t.Fatalf("hits %+v", *hits)
+	}
+	if err := m.Preflight(context.Background(), "", "p"); !errors.Is(err, scm.ErrContract) {
+		t.Fatal(err)
+	}
+	if err := m.Preflight(context.Background(), "acme/team", "p"); !errors.Is(err, scm.ErrContract) {
+		t.Fatal(err)
+	}
+}
+
+func TestPreflightProperty(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		status int
+		body   string
+		want   error
+	}{
+		{http.StatusNotFound, ``, ErrPropertyNotFound},
+		{http.StatusOK, `{"value_type":"single_select"}`, ErrPropertyNotString},
+		{http.StatusInternalServerError, ``, nil},
+	}
+	for _, tc := range cases {
+		m, _ := newManagement(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/orgs/acme" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			w.WriteHeader(tc.status)
+			_, _ = w.Write([]byte(tc.body))
+		})
+		err := m.Preflight(context.Background(), "acme", "tier")
+		if tc.status == http.StatusInternalServerError {
+			var he *scm.HTTPError
+			if !errors.As(err, &he) || he.Status != tc.status {
+				t.Fatalf("status %d err %v", tc.status, err)
+			}
+			continue
+		}
+		if !errors.Is(err, tc.want) {
+			t.Fatalf("status %d err %v", tc.status, err)
+		}
+	}
+}
+
+func TestWriteProperty(t *testing.T) {
+	t.Parallel()
+	m, hits := newManagement(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.URL.Path != "/repos/acme/api/properties/values" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	if err := m.WriteProperty(context.Background(), "acme", "api", "workspace-path", "domain/billing/api"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*hits) != 1 || !strings.Contains((*hits)[0].body, `"property_name":"workspace-path"`) || !strings.Contains((*hits)[0].body, `"value":"domain/billing/api"`) {
+		t.Fatalf("hits %+v", *hits)
+	}
+	m, _ = newManagement(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	})
+	err := m.WriteProperty(context.Background(), "acme", "api", "workspace-path", "x")
+	var he *scm.HTTPError
+	if !errors.As(err, &he) || he.Status != http.StatusForbidden {
+		t.Fatal(err)
+	}
+	if err := m.WriteProperty(context.Background(), "acme", "", "p", "x"); !errors.Is(err, scm.ErrContract) {
+		t.Fatal(err)
+	}
+}

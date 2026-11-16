@@ -71,6 +71,7 @@ func NewRootCommand() (*cobra.Command, error) {
 	pf.StringP("upstream", "U", "", "SCM platform: github or gitlab")
 	pf.StringP("host", "H", "", "SCM host")
 	pf.StringP("token", "t", "", "SCM API token (secret)")
+	pf.String("git-https-token", "", "HTTPS secret passed to git (secret)")
 	pf.String("profile", "", "Named YAML profile for this run")
 
 	profilecmd.Register(root, store)

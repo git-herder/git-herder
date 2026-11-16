@@ -286,8 +286,8 @@ func validateRootSCMKeys(doc map[string]any) error {
 			continue
 		}
 		for k := range block {
-			if (k == "upstream" || k == "host" || k == "token") && key != "root" {
-				return fmt.Errorf("%w: upstream, host, token only allowed in root", ErrConfig)
+			if scmKeyOnlyInRoot(k) && key != "root" {
+				return fmt.Errorf("%w: upstream, host, token, and git-https-token only allowed in root", ErrConfig)
 			}
 		}
 		for subK, subV := range block {
@@ -301,10 +301,19 @@ func validateRootSCMKeys(doc map[string]any) error {
 	return nil
 }
 
+func scmKeyOnlyInRoot(k string) bool {
+	switch k {
+	case "upstream", "host", "token", "git-https-token":
+		return true
+	default:
+		return false
+	}
+}
+
 func scanNestedCommands(block map[string]any, path string) error {
 	for k, v := range block {
-		if k == "upstream" || k == "host" || k == "token" {
-			return fmt.Errorf("%w: %s must not contain upstream, host, or token", ErrConfig, path)
+		if scmKeyOnlyInRoot(k) {
+			return fmt.Errorf("%w: %s must not contain upstream, host, token, or git-https-token", ErrConfig, path)
 		}
 		if sub, ok := v.(map[string]any); ok {
 			if err := scanNestedCommands(sub, path+"."+k); err != nil {

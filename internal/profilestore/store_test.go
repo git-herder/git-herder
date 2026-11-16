@@ -46,6 +46,25 @@ func TestStoreCRUD(t *testing.T) {
 	_ = os.Remove(filepath.Join(dir, "default"))
 }
 
+func TestLoadForResolveGitHTTPSToken(t *testing.T) {
+	dir := t.TempDir()
+	s := NewAt(dir)
+	okYAML := "root:\n  git-https-token: secret\n"
+	if err := os.WriteFile(filepath.Join(dir, "ok.yaml"), []byte(okYAML), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.LoadForResolve("ok"); err != nil {
+		t.Fatal(err)
+	}
+	bad := "publish:\n  git-https-token: secret\n"
+	if err := os.WriteFile(filepath.Join(dir, "bad.yaml"), []byte(bad), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.LoadForResolve("bad"); err == nil {
+		t.Fatal("expected config error")
+	}
+}
+
 func TestLoadForResolveSCMInCommandBlock(t *testing.T) {
 	dir := t.TempDir()
 	s := NewAt(dir)

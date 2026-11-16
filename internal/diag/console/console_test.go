@@ -22,6 +22,9 @@ func TestUIHelpers(t *testing.T) {
 	if _, err := ui.ConfirmRiskyEnumeration(); err == nil {
 		t.Fatal("expected non-tty error")
 	}
+	if _, err := ui.ConfirmMass(12); err == nil {
+		t.Fatal("expected non-tty mass confirmation error")
+	}
 	ui.WarningStderr("warn")
 	ok, err := ui.ConfirmDrop("x")
 	if err != nil {

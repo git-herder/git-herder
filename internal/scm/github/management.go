@@ -48,6 +48,16 @@ var ErrOwnerNotFound = errors.New("github owner does not exist")
 // ErrLoginMismatch — login текущего токена не совпал с сегментом path.
 var ErrLoginMismatch = errors.New("github authenticated login does not match path")
 
+// ErrOrgNotFound — организация для предпроверки атрибута не найдена.
+// Запрос пользователя при этом не выполняется.
+var ErrOrgNotFound = errors.New("github organization does not exist")
+
+// ErrPropertyNotFound — определения свойства в схеме организации нет.
+var ErrPropertyNotFound = errors.New("github custom property does not exist")
+
+// ErrPropertyNotString — свойство есть, но value_type не string.
+var ErrPropertyNotString = errors.New("github custom property is not a string")
+
 type ownerKind int
 
 const (
@@ -144,6 +154,82 @@ func (m *management) ReadProperty(ctx context.Context, owner, repo, property str
 		return PropertyValue{}, &scm.HTTPError{Status: resp.Status, What: "github properties"}
 	}
 	return propertyValueFromBody(resp.Body, property)
+}
+
+// Preflight проверяет организацию и что свойство в её схеме имеет тип string.
+// При 404 организации запрос пользователя не выполняется. Повтора здесь нет.
+func (m *management) Preflight(ctx context.Context, org, property string) (err error) {
+	leave := logging.Enter("org", org, "property", property)
+	defer func() { leave("err", err) }()
+	if org == "" || strings.Contains(org, "/") || property == "" {
+		return fmt.Errorf("%w: github organization and property name must be a single non-empty segment", scm.ErrContract)
+	}
+	resp, err := m.transport.Get(ctx, m.baseURL, "orgs/"+url.PathEscape(org), nil)
+	if err != nil {
+		return err
+	}
+	switch resp.Status {
+	case http.StatusOK:
+	case http.StatusNotFound:
+		return ErrOrgNotFound
+	default:
+		return &scm.HTTPError{Status: resp.Status, What: "github organization"}
+	}
+	path := "orgs/" + url.PathEscape(org) + "/properties/schema/" + url.PathEscape(property)
+	resp, err = m.transport.Get(ctx, m.baseURL, path, nil)
+	if err != nil {
+		return err
+	}
+	switch resp.Status {
+	case http.StatusOK:
+		var body struct {
+			ValueType string `json:"value_type"`
+		}
+		if err := json.Unmarshal(resp.Body, &body); err != nil {
+			return fmt.Errorf("github property schema: %w", err)
+		}
+		if body.ValueType != "string" {
+			return ErrPropertyNotString
+		}
+		return nil
+	case http.StatusNotFound:
+		return ErrPropertyNotFound
+	default:
+		return &scm.HTTPError{Status: resp.Status, What: "github property schema"}
+	}
+}
+
+// WriteProperty записывает одно строковое свойство репозитория.
+// Успех — 204. Другие свойства репозитория тело не содержит.
+func (m *management) WriteProperty(ctx context.Context, owner, repo, property, value string) (err error) {
+	leave := logging.Enter("owner", owner, "repo", repo, "property", property)
+	defer func() { leave("err", err) }()
+	if err = validateProperty(owner, repo, property); err != nil {
+		return err
+	}
+	body, err := json.Marshal(struct {
+		Properties []struct {
+			Name  string `json:"property_name"`
+			Value string `json:"value"`
+		} `json:"properties"`
+	}{
+		Properties: []struct {
+			Name  string `json:"property_name"`
+			Value string `json:"value"`
+		}{{Name: property, Value: value}},
+	})
+	if err != nil {
+		return err
+	}
+	path := "repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/properties/values"
+	resp, err := m.transport.Patch(ctx, m.baseURL, path, body)
+	if err != nil {
+		return err
+	}
+	if resp.Status != http.StatusNoContent {
+		return &scm.HTTPError{Status: resp.Status, What: "github property write"}
+	}
+	return nil
 }
 
 func validateProperty(owner, repo, property string) error {

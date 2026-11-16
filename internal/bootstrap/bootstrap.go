@@ -9,6 +9,7 @@ import (
 
 	"github.com/Snowbridge/git-herder/internal/cli"
 	_ "github.com/Snowbridge/git-herder/internal/cli/clone"
+	_ "github.com/Snowbridge/git-herder/internal/cli/publish"
 	reportcmd "github.com/Snowbridge/git-herder/internal/cli/report"
 	"github.com/Snowbridge/git-herder/internal/diag/logging"
 )

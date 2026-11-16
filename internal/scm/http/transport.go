@@ -131,6 +131,13 @@ func (t *Transport) Post(ctx context.Context, baseURL, path string, body []byte)
 	return t.do(ctx, http.MethodPost, joinURL(baseURL, path), body)
 }
 
+// Patch выполняет PATCH baseURL+path. Непустое тело уходит как JSON.
+func (t *Transport) Patch(ctx context.Context, baseURL, path string, body []byte) (resp Response, err error) {
+	leave := logging.Enter("ctx", ctx, "baseURL", baseURL, "path", path, "bodyLen", len(body))
+	defer func() { leave("status", resp.Status, "bodyLen", len(resp.Body), "err", err) }()
+	return t.do(ctx, http.MethodPatch, joinURL(baseURL, path), body)
+}
+
 func joinURL(baseURL, path string) string {
 	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(path, "/")
 }

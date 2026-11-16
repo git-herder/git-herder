@@ -110,7 +110,32 @@ func ResolveGlobals(cmd *cobra.Command, profileDoc map[string]any, leafCommandNa
 	}
 	out.Token = token
 
+	gitHTTPS, err := resolveRootOnlyString(flags, "git-https-token", profileDoc)
+	if err != nil {
+		return out, err
+	}
+	out.GitHTTPSToken = gitHTTPS
+
 	return out, nil
+}
+
+// resolveRootOnlyString берёт значение из argv или из блока root профиля.
+// Блоки команд этот ключ не подставляют.
+func resolveRootOnlyString(flags *pflag.FlagSet, name string, doc map[string]any) (string, error) {
+	if flags.Lookup(name) == nil {
+		return "", nil
+	}
+	if flags.Changed(name) {
+		return flags.GetString(name)
+	}
+	if doc != nil {
+		if root, ok := doc["root"].(map[string]any); ok {
+			if v, ok := root[name]; ok {
+				return fmt.Sprint(v), nil
+			}
+		}
+	}
+	return flags.GetString(name)
 }
 
 // withDefaultScheme дописывает https://, если в host нет схемы.
