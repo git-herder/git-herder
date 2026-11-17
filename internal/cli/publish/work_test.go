@@ -1,12 +1,14 @@
 package publish
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/git-herder/git-herder/internal/cli"
+	"github.com/git-herder/git-herder/internal/diag/console"
 	"github.com/git-herder/git-herder/internal/resolved"
 	"github.com/git-herder/git-herder/internal/scm"
 )
@@ -17,6 +19,7 @@ type fakeGit struct {
 	branches    map[string]bool
 	remote      map[string]string
 	urlsOf      func(dir string) []string
+	headsByDir  map[string]string
 	pushes      []string
 	adds        []string
 	renames     []string
@@ -34,7 +37,10 @@ func (f *fakeGit) Remotes(_ context.Context, dir string) ([]string, string, erro
 	return nil, "", nil
 }
 
-func (f *fakeGit) Head(context.Context, string) (string, bool, string, error) {
+func (f *fakeGit) Head(_ context.Context, dir string) (string, bool, string, error) {
+	if h, ok := f.headsByDir[dir]; ok {
+		return h, false, "", nil
+	}
 	return f.head, f.detached, "", nil
 }
 
@@ -140,7 +146,7 @@ func TestPublishCopiesSkipRenameAndPush(t *testing.T) {
 	repo := &fakeRepo{}
 	var lines []string
 	job := &publishJob{dir: "/c", rel: "api", path: "acme", name: "api", attr: "api", addr: "git@github.com:acme/api.git"}
-	failed, err := publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "workspace-path", 0, resolved.OnErrorContinue, git, repo, repo, nil, func(s string) {
+	failed, err := publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "workspace-path", 0, resolved.OnErrorContinue, git, repo, repo, nil, nil, func(s string) {
 		lines = append(lines, s)
 	})
 	if err != nil || failed || len(git.pushes) != 0 || len(repo.writes) != 1 || repo.writes[0] != "api" {
@@ -156,7 +162,7 @@ func TestPublishCopiesSkipRenameAndPush(t *testing.T) {
 	lines = nil
 	git.remote["origin"] = "https://old.example/acme/api.git"
 	job = &publishJob{dir: "/c", rel: "api", path: "acme", name: "api", addr: "git@github.com:acme/api.git"}
-	failed, err = publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishRename, "", 0, resolved.OnErrorContinue, git, repo, nil, nil, func(s string) {
+	failed, err = publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishRename, "", 0, resolved.OnErrorContinue, git, repo, nil, nil, nil, func(s string) {
 		lines = append(lines, s)
 	})
 	if err != nil || failed || len(git.renames) != 1 || git.renames[0] != "origin_100" {
@@ -179,7 +185,7 @@ func TestPublishCopiesPartialAndRetry(t *testing.T) {
 	repo := &fakeRepo{}
 	var lines []string
 	job := &publishJob{dir: "/c", rel: "api", path: "acme", name: "api", addr: "git@github.com:acme/api.git"}
-	failed, err := publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 0, resolved.OnErrorContinue, git, repo, nil, nil, func(s string) {
+	failed, err := publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 0, resolved.OnErrorContinue, git, repo, nil, nil, nil, func(s string) {
 		lines = append(lines, s)
 	})
 	if err != nil || !failed || len(lines) != 1 || !strings.HasPrefix(lines[0], "⚠ ") || !strings.Contains(lines[0], "hook declined") {
@@ -189,7 +195,7 @@ func TestPublishCopiesPartialAndRetry(t *testing.T) {
 	git.pushFail = map[string]string{"main": "no upstream", "develop": "later"}
 	lines = nil
 	job = &publishJob{dir: "/c", rel: "api", path: "acme", name: "api", addr: "git@github.com:acme/api.git"}
-	failed, err = publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 0, resolved.OnErrorContinue, git, repo, nil, nil, func(s string) {
+	failed, err = publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 0, resolved.OnErrorContinue, git, repo, nil, nil, nil, func(s string) {
 		lines = append(lines, s)
 	})
 	if err != nil || !failed || len(lines) != 1 || !strings.HasPrefix(lines[0], "✖ ") || !strings.Contains(lines[0], "no upstream") {
@@ -200,7 +206,7 @@ func TestPublishCopiesPartialAndRetry(t *testing.T) {
 	git.pushFail = map[string]string{"develop": "once"}
 	lines = nil
 	job = &publishJob{dir: "/c", rel: "api", path: "acme", name: "api", addr: "git@github.com:acme/api.git"}
-	failed, err = publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 1, resolved.OnErrorAbort, git, repo, nil, nil, func(s string) {
+	failed, err = publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 1, resolved.OnErrorAbort, git, repo, nil, nil, nil, func(s string) {
 		lines = append(lines, s)
 	})
 	if err != nil || failed || len(lines) != 1 || !strings.HasPrefix(lines[0], "✔ ") {
@@ -216,7 +222,7 @@ func TestPublishCopiesMasterAndCurrentOnly(t *testing.T) {
 	repo := &fakeRepo{have: map[string]bool{"acme/api": true}}
 	var lines []string
 	job := &publishJob{dir: "/c", rel: ".", path: "acme", name: "api", addr: "git@github.com:acme/api.git"}
-	failed, err := publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 0, resolved.OnErrorContinue, git, repo, nil, nil, func(s string) {
+	failed, err := publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 0, resolved.OnErrorContinue, git, repo, nil, nil, nil, func(s string) {
 		lines = append(lines, s)
 	})
 	if err != nil || failed || strings.Join(git.pushes, ",") != "master,topic" {
@@ -228,9 +234,59 @@ func TestPublishCopiesMasterAndCurrentOnly(t *testing.T) {
 
 	git = &fakeGit{head: "topic", branches: map[string]bool{}}
 	job = &publishJob{dir: "/c", rel: "api", path: "acme", name: "api", addr: "git@github.com:acme/api.git"}
-	failed, err = publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 0, resolved.OnErrorAbort, git, repo, nil, nil, func(string) {})
+	failed, err = publishCopies(context.Background(), []*publishJob{job}, "origin", cli.PublishSkip, "", 0, resolved.OnErrorAbort, git, repo, nil, nil, nil, func(string) {})
 	if err != nil || failed || strings.Join(git.pushes, ",") != "topic" {
 		t.Fatalf("failed=%v err=%v pushes=%v", failed, err, git.pushes)
+	}
+}
+
+func TestPublishStepStatus(t *testing.T) {
+	prev := unixNow
+	unixNow = func() int64 { return 100 }
+	t.Cleanup(func() { unixNow = prev })
+
+	git := &fakeGit{
+		branches:   map[string]bool{},
+		headsByDir: map[string]string{"/one": "main", "/two": "topic"},
+		remote:     map[string]string{"origin": "https://old.example/acme/api.git"},
+		pushFail:   map[string]string{"topic": "once"},
+	}
+	repo := &fakeRepo{}
+	var buf bytes.Buffer
+	steps := console.NewGitStep(&buf, false, 0)
+	var lines []string
+	jobs := []*publishJob{
+		{dir: "/one", rel: "one", path: "acme", name: "one", addr: "git@github.com:acme/one.git"},
+		{dir: "/two", rel: "two", path: "acme", name: "two", addr: "git@github.com:acme/two.git"},
+	}
+	failed, err := publishCopies(context.Background(), jobs, "origin", cli.PublishRename, "", 1, resolved.OnErrorContinue, git, repo, nil, nil, steps, func(s string) {
+		lines = append(lines, s)
+	})
+	if err != nil || failed {
+		t.Fatalf("failed=%v err=%v lines=%v pushes=%v", failed, err, lines, git.pushes)
+	}
+	if len(lines) != 2 {
+		t.Fatalf("results %q", lines)
+	}
+	want := strings.Join([]string{
+		"remote 0/2 one 0:00",
+		"remote 0/2 one 0:00",
+		"push main 0/2 one 0:00",
+		"remote 1/2 two 0:00",
+		"remote 1/2 two 0:00",
+		"push topic 1/2 two 0:00",
+		"push topic 1/2 two attempt 2 0:00",
+		"",
+	}, "\n")
+	if buf.String() != want {
+		t.Fatalf("status %q", buf.String())
+	}
+	if strings.Contains(buf.String(), "git@") || strings.Contains(buf.String(), "https://") {
+		t.Fatalf("url in status %q", buf.String())
+	}
+	joined := strings.Join(repo.calls, ",")
+	if !strings.Contains(joined, "create ") {
+		t.Fatalf("create was not called: %v", repo.calls)
 	}
 }
 

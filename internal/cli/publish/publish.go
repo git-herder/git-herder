@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/git-herder/git-herder/internal/appexit"
 	"github.com/git-herder/git-herder/internal/cli"
@@ -253,7 +254,8 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 	if settings.PathAttributeSet {
 		attrName = settings.PathAttribute
 	}
-	failed, err := publishCopies(context.Background(), jobs, settings.Remote, settings.Existing, attrName, g.RetriesNumber, g.OnError, runner, creator, writer, logf, printLine)
+	steps := console.NewGitStep(os.Stderr, term.IsTerminal(int(os.Stderr.Fd())), len(jobs))
+	failed, err := publishCopies(context.Background(), jobs, settings.Remote, settings.Existing, attrName, g.RetriesNumber, g.OnError, runner, creator, writer, logf, steps, printLine)
 	if err != nil {
 		ui.Error(err.Error())
 		return exit1(err)

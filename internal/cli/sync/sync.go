@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/git-herder/git-herder/internal/appexit"
 	"github.com/git-herder/git-herder/internal/cli"
@@ -134,7 +135,8 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 		jobs = append(jobs, &syncJob{dir: c.Dir, rel: rel})
 	}
 	auth := gitexec.HTTPSAuth{Token: g.GitHTTPSToken, Upstream: upstreamName(g.Upstream)}
-	bad, err := syncCopies(context.Background(), jobs, settings.Branch, settings.Remote, settings.PullOpts, settings.PushOpts, auth, g.RetriesNumber, g.OnError, runner, logf, printLine)
+	steps := console.NewGitStep(os.Stderr, term.IsTerminal(int(os.Stderr.Fd())), len(jobs))
+	bad, err := syncCopies(context.Background(), jobs, settings.Branch, settings.Remote, settings.PullOpts, settings.PushOpts, auth, g.RetriesNumber, g.OnError, runner, logf, steps, printLine)
 	if err != nil {
 		return fail(ui, err)
 	}

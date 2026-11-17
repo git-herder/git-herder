@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/git-herder/git-herder/internal/diag/console"
 	"github.com/git-herder/git-herder/internal/gitexec"
 	"github.com/git-herder/git-herder/internal/resolved"
 	"github.com/git-herder/git-herder/internal/retrying"
@@ -15,11 +16,16 @@ type syncJob struct {
 	rel      string
 	attempts int
 	bad      bool
+	steps    *console.GitStep
 }
 
-func syncCopies(ctx context.Context, jobs []*syncJob, branch, remote string, pullOpts, pushOpts []string, auth gitexec.HTTPSAuth, retries int, onError resolved.OnError, git gitOps, logf func(string), print func(string)) (bad bool, err error) {
+func syncCopies(ctx context.Context, jobs []*syncJob, branch, remote string, pullOpts, pushOpts []string, auth gitexec.HTTPSAuth, retries int, onError resolved.OnError, git gitOps, logf func(string), steps *console.GitStep, print func(string)) (bad bool, err error) {
+	steps.SetTotal(len(jobs))
 	if len(jobs) == 0 {
 		return false, nil
+	}
+	for _, j := range jobs {
+		j.steps = steps
 	}
 	policy := retrying.PolicyContinue
 	if onError == resolved.OnErrorAbort {
@@ -50,7 +56,9 @@ func (j *syncJob) step(ctx context.Context, branch, remote string, pullOpts, pus
 	if err != nil {
 		return j.done(retries, nil, signFail, signFail, []string{err.Error(), "отправка не начиналась"}, print)
 	}
+	j.steps.Start("ls-remote", j.rel, j.attempts)
 	remoteOID, found, out, err := git.LsRemoteHead(ctx, j.dir, remote, branch, cfg)
+	j.steps.Stop()
 	logGit(logf, out)
 	if out.Exit == 128 {
 		return j.done(retries, queueErr(err, out, "получение не удалось"), signFail, signFail, []string{shortReason(out, "получение не удалось"), "отправка не начиналась"}, print)
@@ -68,7 +76,9 @@ func (j *syncJob) step(ctx context.Context, branch, remote string, pullOpts, pus
 		if berr != nil {
 			return j.done(retries, nil, signFail, signFail, []string{shortReason(bout, "получение не удалось"), "отправка не начиналась"}, print)
 		}
+		j.steps.Start("pull", j.rel, j.attempts)
 		pout, perr := git.Pull(ctx, j.dir, pullOpts, remote, branch, cfg)
+		j.steps.Stop()
 		logGit(logf, pout)
 		pending, files, merr := mergeState(ctx, git, j.dir, logf)
 		if pending {
@@ -95,7 +105,9 @@ func (j *syncJob) step(ctx context.Context, branch, remote string, pullOpts, pus
 		}
 	}
 
+	j.steps.Start("push", j.rel, j.attempts)
 	pushOut, pushErr := git.Push(ctx, j.dir, pushOpts, remote, branch, cfg)
+	j.steps.Stop()
 	logGit(logf, pushOut)
 	if pushOut.Exit == 128 && merged {
 		notes := append(append([]string{}, pullNotes...), shortReason(pushOut, "отправка не удалась"))
@@ -142,7 +154,7 @@ func (j *syncJob) configArgs(ctx context.Context, remote string, auth gitexec.HT
 func (j *syncJob) done(retries int, qerr error, pull, push string, notes []string, print func(string)) error {
 	if qerr == nil || j.attempts > retries {
 		j.bad = badSign(pull) || badSign(push)
-		print(formatResult(pull, push, j.rel, notes))
+		j.steps.Result(print, formatResult(pull, push, j.rel, notes))
 	}
 	return qerr
 }

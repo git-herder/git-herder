@@ -1,6 +1,7 @@
 package clone
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -29,7 +30,7 @@ func TestCloneSkipFullDir(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(context.Context, []string, string, string) (string, error) {
 		calls++
 		return "", nil
-	}, nil, func(line string) { lines = append(lines, line) }, "", nil)
+	}, nil, nil, func(line string) { lines = append(lines, line) }, "", nil)
 	if err != nil || failed {
 		t.Fatalf("failed=%v err=%v", failed, err)
 	}
@@ -66,7 +67,7 @@ func TestCloneDropAndRetryCleansPartial(t *testing.T) {
 			return "fatal: boom\n", os.ErrInvalid
 		}
 		return "", nil
-	}, func(string) {}, func(line string) { lines = append(lines, line) }, "", nil)
+	}, func(string) {}, nil, func(line string) { lines = append(lines, line) }, "", nil)
 	if err != nil || failed {
 		t.Fatalf("failed=%v err=%v lines=%v", failed, err, lines)
 	}
@@ -96,7 +97,7 @@ func TestCloneFileIsNotQueued(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 2, resolved.OnErrorAbort, func(context.Context, []string, string, string) (string, error) {
 		t.Fatal("git should not run")
 		return "", nil
-	}, nil, func(line string) { lines = append(lines, line) }, "", nil)
+	}, nil, nil, func(line string) { lines = append(lines, line) }, "", nil)
 	if err == nil || !failed || len(lines) != 1 || !strings.Contains(lines[0], "file") {
 		t.Fatalf("failed=%v err=%v lines=%v", failed, err, lines)
 	}
@@ -118,7 +119,7 @@ func TestCloneGitFailureLine(t *testing.T) {
 		Name: "api", Path: "g", URL: "https://example/g/api",
 	}}, false, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(context.Context, []string, string, string) (string, error) {
 		return "\nfatal: denied\n", os.ErrInvalid
-	}, func(string) {}, func(line string) { lines = append(lines, line) }, "", nil)
+	}, func(string) {}, nil, func(line string) { lines = append(lines, line) }, "", nil)
 	if err != nil || !failed || len(lines) != 1 || !strings.Contains(lines[0], "fatal: denied") {
 		t.Fatalf("failed=%v err=%v lines=%v", failed, err, lines)
 	}
@@ -144,7 +145,7 @@ func TestCloneAttributePath(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(_ context.Context, _ []string, _ string, dest string) (string, error) {
 		got = dest
 		return "", nil
-	}, nil, func(string) {}, "workspace-path", props)
+	}, nil, nil, func(string) {}, "workspace-path", props)
 	if err != nil || failed || props.calls != 1 {
 		t.Fatalf("failed=%v err=%v calls=%d", failed, err, props.calls)
 	}
@@ -163,7 +164,7 @@ func TestCloneAttributeAbsentUsesWorkspace(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(_ context.Context, _ []string, _ string, dest string) (string, error) {
 		got = dest
 		return "", nil
-	}, nil, func(string) {}, "workspace-path", props)
+	}, nil, nil, func(string) {}, "workspace-path", props)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +182,7 @@ func TestCloneAttributeNotString(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 2, resolved.OnErrorAbort, func(context.Context, []string, string, string) (string, error) {
 		t.Fatal("git should not run")
 		return "", nil
-	}, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
+	}, nil, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
 	if err == nil || !failed || props.calls != 1 || len(lines) != 1 || !strings.Contains(lines[0], "not a string") {
 		t.Fatalf("failed=%v err=%v reads=%d lines=%v", failed, err, props.calls, lines)
 	}
@@ -197,7 +198,7 @@ func TestCloneAttributeReadError(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 1, resolved.OnErrorContinue, func(context.Context, []string, string, string) (string, error) {
 		calls++
 		return "", nil
-	}, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
+	}, nil, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
 	if err != nil || !failed || calls != 0 || props.calls != 2 || len(lines) != 1 || !strings.HasPrefix(lines[0], "✖ ") {
 		t.Fatalf("failed=%v err=%v calls=%d reads=%d lines=%v", failed, err, calls, props.calls, lines)
 	}
@@ -212,7 +213,7 @@ func TestCloneAttributeDotDotNotQueued(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 2, resolved.OnErrorAbort, func(context.Context, []string, string, string) (string, error) {
 		t.Fatal("git should not run")
 		return "", nil
-	}, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
+	}, nil, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
 	if err == nil || !failed || props.calls != 1 || len(lines) != 1 {
 		t.Fatalf("failed=%v err=%v reads=%d lines=%v", failed, err, props.calls, lines)
 	}
@@ -227,7 +228,7 @@ func TestCloneAttributeBadOwnerNotRead(t *testing.T) {
 	}}, false, "ssh", existSkip, nil, 2, resolved.OnErrorContinue, func(context.Context, []string, string, string) (string, error) {
 		t.Fatal("git should not run")
 		return "", nil
-	}, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
+	}, nil, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
 	if err != nil || !failed || props.calls != 0 || len(lines) != 1 {
 		t.Fatalf("failed=%v err=%v reads=%d lines=%v", failed, err, props.calls, lines)
 	}
@@ -252,5 +253,42 @@ func TestPickWithoutTerminal(t *testing.T) {
 	_, err := pick(console.New(), []card.Card{{Name: "api", Path: "g", URL: "https://example/g/api"}})
 	if err == nil {
 		t.Fatal("expected interactive error")
+	}
+}
+
+func TestCloneStepStatus(t *testing.T) {
+	ws := t.TempDir()
+	props := &stubProps{v: github.PropertyValue{State: github.PropertyString, Value: "slot"}}
+	var buf bytes.Buffer
+	steps := console.NewGitStep(&buf, false, 0)
+	n := 0
+	var lines []string
+	failed, err := cloneCards(context.Background(), ws, []card.Card{
+		{Name: "a", Path: "acme", URL: "https://token@example/acme/a"},
+		{Name: "b", Path: "acme", URL: "https://example/acme/b"},
+	}, false, "ssh", existSkip, nil, 1, resolved.OnErrorContinue, func(context.Context, []string, string, string) (string, error) {
+		n++
+		if n == 2 {
+			return "fatal: boom", os.ErrInvalid
+		}
+		return "", nil
+	}, nil, steps, func(line string) { lines = append(lines, line) }, "workspace-path", props)
+	if err != nil || failed {
+		t.Fatalf("failed=%v err=%v lines=%v", failed, err, lines)
+	}
+	if props.calls != 2 {
+		t.Fatalf("attribute reads %d", props.calls)
+	}
+	want := strings.Join([]string{
+		"clone 0/2 acme/a 0:00",
+		"clone 1/2 acme/b 0:00",
+		"clone 1/2 acme/b attempt 2 0:00",
+		"",
+	}, "\n")
+	if buf.String() != want {
+		t.Fatalf("status %q", buf.String())
+	}
+	if strings.Contains(buf.String(), "https://") || strings.Contains(buf.String(), "token") {
+		t.Fatalf("secret in status %q", buf.String())
 	}
 }

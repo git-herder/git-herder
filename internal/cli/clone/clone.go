@@ -182,7 +182,8 @@ func run(cmd *cobra.Command, ui *console.UI) (err error) {
 		}
 		props = reader
 	}
-	failed, err := cloneCards(context.Background(), g.Workspace, cards, settings.PreservePath, string(settings.Protocol), pol, settings.GitOpts, g.RetriesNumber, g.OnError, runGit, logf, func(line string) {
+	steps := console.NewGitStep(os.Stderr, term.IsTerminal(int(os.Stderr.Fd())), 0)
+	failed, err := cloneCards(context.Background(), g.Workspace, cards, settings.PreservePath, string(settings.Protocol), pol, settings.GitOpts, g.RetriesNumber, g.OnError, runGit, logf, steps, func(line string) {
 		fmt.Println(line)
 	}, attrName, props)
 	if err != nil {

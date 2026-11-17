@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/git-herder/git-herder/internal/diag/console"
 	"github.com/git-herder/git-herder/internal/resolved"
 	"github.com/git-herder/git-herder/internal/retrying"
 	"github.com/git-herder/git-herder/internal/scm"
@@ -42,9 +43,10 @@ type cloneJob struct {
 	dropped  bool
 	cleanup  bool
 	attempts int
+	steps    *console.GitStep
 }
 
-func cloneCards(ctx context.Context, workspace string, cards []card.Card, preserve bool, protocol string, pol resolvedExisting, opts []string, retries int, onError resolved.OnError, git gitFunc, logf func(string), print func(string), attrName string, props propertyReader) (failed bool, err error) {
+func cloneCards(ctx context.Context, workspace string, cards []card.Card, preserve bool, protocol string, pol resolvedExisting, opts []string, retries int, onError resolved.OnError, git gitFunc, logf func(string), steps *console.GitStep, print func(string), attrName string, props propertyReader) (failed bool, err error) {
 	policy := retrying.PolicyContinue
 	if onError == resolved.OnErrorAbort {
 		policy = retrying.PolicyAbort
@@ -117,6 +119,10 @@ func cloneCards(ctx context.Context, workspace string, cards []card.Card, preser
 	}
 	if len(jobs) == 0 {
 		return failed, nil
+	}
+	steps.SetTotal(len(jobs))
+	for _, j := range jobs {
+		j.steps = steps
 	}
 	n, runErr := retrying.Execute(jobs, retries, policy, nil, func(j *cloneJob) error {
 		return j.step(ctx, pol, opts, retries, git, logf, print)
@@ -202,7 +208,7 @@ func (j *cloneJob) step(ctx context.Context, pol resolvedExisting, opts []string
 	}
 	if j.place == placeFull && !j.dropped {
 		if pol == existSkip {
-			print(skipLine(j.card.FullName()))
+			j.steps.Result(print, skipLine(j.card.FullName()))
 			return nil
 		}
 		if err := os.RemoveAll(j.dest); err != nil {
@@ -214,7 +220,9 @@ func (j *cloneJob) step(ctx context.Context, pol resolvedExisting, opts []string
 	if err := os.MkdirAll(filepath.Dir(j.dest), 0o755); err != nil {
 		return j.finish(retries, err, err.Error(), print)
 	}
+	j.steps.Start("clone", j.card.FullName(), j.attempts)
 	out, err := git(ctx, opts, j.repoURL, j.dest)
+	j.steps.Stop()
 	if logf != nil && out != "" {
 		logf(out)
 	}
@@ -224,7 +232,7 @@ func (j *cloneJob) step(ctx context.Context, pol resolvedExisting, opts []string
 		}
 		return j.finish(retries, err, shortReason(out), print)
 	}
-	print(okLine(j.card.FullName()))
+	j.steps.Result(print, okLine(j.card.FullName()))
 	return nil
 }
 
@@ -233,7 +241,7 @@ func (j *cloneJob) finish(retries int, err error, reason string, print func(stri
 		if strings.TrimSpace(reason) == "" {
 			reason = failFallback
 		}
-		print(failLine(j.card.FullName(), reason))
+		j.steps.Result(print, failLine(j.card.FullName(), reason))
 	}
 	return err
 }

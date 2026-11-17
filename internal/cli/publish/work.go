@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/git-herder/git-herder/internal/cli"
+	"github.com/git-herder/git-herder/internal/diag/console"
 	"github.com/git-herder/git-herder/internal/resolved"
 	"github.com/git-herder/git-herder/internal/retrying"
 	"github.com/git-herder/git-herder/internal/scm"
@@ -37,13 +38,18 @@ type publishJob struct {
 	addr     string
 	attempts int
 	result   resultKind
+	steps    *console.GitStep
 }
 
 var unixNow = func() int64 { return time.Now().Unix() }
 
-func publishCopies(ctx context.Context, jobs []*publishJob, remote string, existing cli.PublishExisting, attrName string, retries int, onError resolved.OnError, git gitOps, creator scm.RepositoryCreator, writer propAPI, logf func(string), print func(string)) (failed bool, err error) {
+func publishCopies(ctx context.Context, jobs []*publishJob, remote string, existing cli.PublishExisting, attrName string, retries int, onError resolved.OnError, git gitOps, creator scm.RepositoryCreator, writer propAPI, logf func(string), steps *console.GitStep, print func(string)) (failed bool, err error) {
+	steps.SetTotal(len(jobs))
 	if len(jobs) == 0 {
 		return false, nil
+	}
+	for _, j := range jobs {
+		j.steps = steps
 	}
 	policy := retrying.PolicyContinue
 	if onError == resolved.OnErrorAbort {
@@ -82,13 +88,13 @@ func (j *publishJob) step(ctx context.Context, remote string, existing cli.Publi
 			return j.finish(retries, err, resultFail, failLine(j.rel, reasonOf("", err)), print)
 		}
 	}
-	skip, err := bindRemote(ctx, git, j.dir, remote, j.addr, existing, logf)
+	skip, err := bindRemote(ctx, git, j.dir, remote, j.addr, existing, logf, j.steps, j.rel, j.attempts)
 	if err != nil {
 		return j.finish(retries, err, resultFail, failLine(j.rel, reasonOf("", err)), print)
 	}
 	if skip {
 		j.result = resultSkip
-		print(skipLine(j.rel))
+		j.steps.Result(print, skipLine(j.rel))
 		return nil
 	}
 	def, cur, err := chooseBranches(ctx, git, j.dir, logf)
@@ -99,7 +105,9 @@ func (j *publishJob) step(ctx context.Context, remote string, existing cli.Publi
 	want := 1
 	var failOut string
 	var failErr error
+	j.steps.Start("push "+def, j.rel, j.attempts)
 	out, err := git.Push(ctx, j.dir, remote, def)
+	j.steps.Stop()
 	logText(logf, out)
 	if err == nil {
 		pushed++
@@ -108,7 +116,9 @@ func (j *publishJob) step(ctx context.Context, remote string, existing cli.Publi
 	}
 	if cur != def {
 		want = 2
+		j.steps.Start("push "+cur, j.rel, j.attempts)
 		out, err = git.Push(ctx, j.dir, remote, cur)
+		j.steps.Stop()
 		logText(logf, out)
 		if err == nil {
 			pushed++
@@ -118,7 +128,7 @@ func (j *publishJob) step(ctx context.Context, remote string, existing cli.Publi
 	}
 	if pushed == want {
 		j.result = resultOK
-		print(okLine(j.rel))
+		j.steps.Result(print, okLine(j.rel))
 		return nil
 	}
 	kind := resultFail
@@ -133,16 +143,18 @@ func (j *publishJob) step(ctx context.Context, remote string, existing cli.Publi
 func (j *publishJob) finish(retries int, err error, kind resultKind, line string, print func(string)) error {
 	if j.attempts > retries {
 		j.result = kind
-		print(line)
+		j.steps.Result(print, line)
 	}
 	return err
 }
 
-func bindRemote(ctx context.Context, git gitOps, dir, remote, want string, policy cli.PublishExisting, logf func(string)) (bool, error) {
+func bindRemote(ctx context.Context, git gitOps, dir, remote, want string, policy cli.PublishExisting, logf func(string), steps *console.GitStep, label string, attempt int) (bool, error) {
 	got, missing, out, err := git.RemoteURL(ctx, dir, remote)
 	logText(logf, out)
 	if missing {
+		steps.Start("remote", label, attempt)
 		out, err = git.RemoteAdd(ctx, dir, remote, want)
+		steps.Stop()
 		logText(logf, out)
 		return false, err
 	}
@@ -156,12 +168,16 @@ func bindRemote(ctx context.Context, git gitOps, dir, remote, want string, polic
 		return true, nil
 	}
 	renamed := fmt.Sprintf("%s_%d", remote, unixNow())
+	steps.Start("remote", label, attempt)
 	out, err = git.RemoteRename(ctx, dir, remote, renamed)
+	steps.Stop()
 	logText(logf, out)
 	if err != nil {
 		return false, err
 	}
+	steps.Start("remote", label, attempt)
 	out, err = git.RemoteAdd(ctx, dir, remote, want)
+	steps.Stop()
 	logText(logf, out)
 	return false, err
 }

@@ -1,10 +1,12 @@
 package sync
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
 
+	"github.com/git-herder/git-herder/internal/diag/console"
 	"github.com/git-herder/git-herder/internal/gitexec"
 	"github.com/git-herder/git-herder/internal/resolved"
 )
@@ -13,7 +15,7 @@ func runOne(t *testing.T, git *fakeGit, retries int, onError resolved.OnError, a
 	t.Helper()
 	var lines []string
 	job := &syncJob{dir: "copy", rel: "documentation/architecture"}
-	bad, err := syncCopies(context.Background(), []*syncJob{job}, "feature", "origin", pullOpts, pushOpts, auth, retries, onError, git, func(string) {}, func(s string) {
+	bad, err := syncCopies(context.Background(), []*syncJob{job}, "feature", "origin", pullOpts, pushOpts, auth, retries, onError, git, func(string) {}, nil, func(s string) {
 		lines = append(lines, s)
 	})
 	return lines, bad, err
@@ -198,7 +200,7 @@ func TestSyncAbortSkipsNextCopy(t *testing.T) {
 	git.failDir = "a"
 	var lines []string
 	jobs := []*syncJob{{dir: "a", rel: "a"}, {dir: "b", rel: "b"}}
-	bad, err := syncCopies(context.Background(), jobs, "feature", "origin", nil, nil, gitexec.HTTPSAuth{}, 0, resolved.OnErrorAbort, git, func(string) {}, func(s string) {
+	bad, err := syncCopies(context.Background(), jobs, "feature", "origin", nil, nil, gitexec.HTTPSAuth{}, 0, resolved.OnErrorAbort, git, func(string) {}, nil, func(s string) {
 		lines = append(lines, s)
 	})
 	if err == nil || !bad || git.lses != 1 || len(lines) != 1 {
@@ -316,3 +318,36 @@ func TestSyncURLReadError(t *testing.T) {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+func TestSyncStepStatus(t *testing.T) {
+	git := readyGit()
+	git.lsSeq = []int{0, 128, 0}
+	git.oid = "aaa"
+	git.lsOID = "aaa"
+	var buf bytes.Buffer
+	steps := console.NewGitStep(&buf, false, 0)
+	var lines []string
+	jobs := []*syncJob{{dir: "a", rel: "a"}, {dir: "b", rel: "b"}}
+	bad, err := syncCopies(context.Background(), jobs, "feature", "origin", nil, nil, gitexec.HTTPSAuth{}, 1, resolved.OnErrorContinue, git, func(string) {}, steps, func(s string) {
+		lines = append(lines, s)
+	})
+	if err != nil || bad {
+		t.Fatalf("bad=%v err=%v", bad, err)
+	}
+	want := strings.Join([]string{
+		"ls-remote 0/2 a 0:00",
+		"pull 0/2 a 0:00",
+		"push 0/2 a 0:00",
+		"ls-remote 1/2 b 0:00",
+		"ls-remote 1/2 b attempt 2 0:00",
+		"pull 1/2 b attempt 2 0:00",
+		"push 1/2 b attempt 2 0:00",
+		"",
+	}, "\n")
+	if buf.String() != want {
+		t.Fatalf("status %q", buf.String())
+	}
+	if len(lines) != 2 {
+		t.Fatalf("results %q", lines)
+	}
+}
