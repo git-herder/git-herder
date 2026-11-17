@@ -137,10 +137,10 @@ func (s *stubProps) ReadProperty(context.Context, string, string, string) (githu
 
 func TestCloneAttributePath(t *testing.T) {
 	ws := t.TempDir()
-	props := &stubProps{v: github.PropertyValue{State: github.PropertyString, Value: `domain\billing`}}
+	props := &stubProps{v: github.PropertyValue{State: github.PropertyString, Value: `domain\billing\api`}}
 	var got string
 	failed, err := cloneCards(context.Background(), ws, []card.Card{{
-		Name: "api", Path: "acme", URL: "https://example/acme/api",
+		Name: "other", Path: "acme", URL: "https://example/acme/other",
 	}}, false, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(_ context.Context, _ []string, _ string, dest string) (string, error) {
 		got = dest
 		return "", nil
@@ -154,26 +154,7 @@ func TestCloneAttributePath(t *testing.T) {
 	}
 }
 
-func TestCloneAttributePreserve(t *testing.T) {
-	ws := t.TempDir()
-	props := &stubProps{v: github.PropertyValue{State: github.PropertyString, Value: `domain\billing`}}
-	var got string
-	_, err := cloneCards(context.Background(), ws, []card.Card{{
-		Name: "api", Path: "acme", URL: "https://example/acme/api",
-	}}, true, "ssh", existSkip, nil, 0, resolved.OnErrorContinue, func(_ context.Context, _ []string, _ string, dest string) (string, error) {
-		got = dest
-		return "", nil
-	}, nil, func(string) {}, "workspace-path", props)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := filepath.Join(ws, "acme", "domain", "billing", "api")
-	if got != want {
-		t.Fatalf("got %s want %s", got, want)
-	}
-}
-
-func TestCloneAttributeMissingFallsBack(t *testing.T) {
+func TestCloneAttributeAbsentUsesWorkspace(t *testing.T) {
 	ws := t.TempDir()
 	props := &stubProps{v: github.PropertyValue{State: github.PropertyAbsent}}
 	var got string
@@ -186,9 +167,23 @@ func TestCloneAttributeMissingFallsBack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(ws, "acme", "api")
-	if got != want {
-		t.Fatalf("got %s want %s", got, want)
+	if got != ws {
+		t.Fatalf("got %s want %s", got, ws)
+	}
+}
+
+func TestCloneAttributeNotString(t *testing.T) {
+	ws := t.TempDir()
+	props := &stubProps{v: github.PropertyValue{State: github.PropertyNotString}}
+	var lines []string
+	failed, err := cloneCards(context.Background(), ws, []card.Card{{
+		Name: "api", Path: "acme", URL: "https://example/acme/api",
+	}}, false, "ssh", existSkip, nil, 2, resolved.OnErrorAbort, func(context.Context, []string, string, string) (string, error) {
+		t.Fatal("git should not run")
+		return "", nil
+	}, nil, func(line string) { lines = append(lines, line) }, "workspace-path", props)
+	if err == nil || !failed || props.calls != 1 || len(lines) != 1 || !strings.Contains(lines[0], "not a string") {
+		t.Fatalf("failed=%v err=%v reads=%d lines=%v", failed, err, props.calls, lines)
 	}
 }
 

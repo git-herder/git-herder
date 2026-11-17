@@ -131,4 +131,17 @@ func TestCloneCommand(t *testing.T) {
 	if err := root.Execute(); err == nil {
 		t.Fatal("missing token")
 	}
+
+	root, err = cli.NewRootCommand()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root.SetArgs([]string{
+		"--upstream", "github", "--host", "https://api.github.com", "--token", "tok",
+		"--workspace", filepath.Join(dir, "attr-ws"),
+		"clone", "--qn", "api", "--path-attribute", "workspace-path", "--preserve-path",
+	})
+	if err := root.Execute(); err == nil {
+		t.Fatal("path-attribute with preserve-path")
+	}
 }

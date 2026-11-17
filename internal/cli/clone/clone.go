@@ -56,7 +56,7 @@ func Register(root *cobra.Command) {
 	fs.BoolP("interactive", "i", false, "Choose repositories from the loaded list")
 	fs.StringArray("git-opts", nil, "One git clone argument per repeat, for example --git-opts=--depth=1")
 	fs.String("protocol", "ssh", "Clone URL protocol: ssh or https")
-	fs.String("path-attribute", "", "GitHub custom property: parent directories of the clone inside the workspace")
+	fs.String("path-attribute", "", "GitHub custom property: relative path of the working copy, including its directory name")
 	root.AddCommand(cmd)
 }
 
@@ -88,6 +88,11 @@ func run(cmd *cobra.Command, ui *console.UI) (err error) {
 		return exit1(err)
 	}
 	if err := cli.ValidatePathAttribute(settings.PathAttributeSet, settings.PathAttribute, g.Upstream); err != nil {
+		ui.Error(err.Error())
+		return exit1(err)
+	}
+	if settings.PathAttributeSet && settings.PreservePath {
+		err := fmt.Errorf("--path-attribute cannot be combined with --preserve-path")
 		ui.Error(err.Error())
 		return exit1(err)
 	}

@@ -14,22 +14,18 @@ var errNoRemainder = fmt.Errorf("destination path is empty after overlap")
 var errParentEscape = fmt.Errorf("attribute path contains ..")
 
 // attributeDestination собирает каталог из значения пользовательского атрибута.
-// raw делится по / и \. Пустые сегменты и «.» отбрасываются. «..» — ошибка.
-// preserve добавляет сегменты path карточки перед родителями из атрибута.
-func attributeDestination(workspace, repoPath, name, raw string, preserve bool) (string, error) {
-	parents, err := splitAttribute(raw)
+// raw — полный относительный путь копии, включая имя каталога. Делится по / и \.
+// Пустые сегменты и «.» отбрасываются. «..» — ошибка. Сегментов не осталось —
+// назначение равно workspace. Имя репозитория к пути не добавляется.
+func attributeDestination(workspace, raw string) (string, error) {
+	segs, err := splitAttribute(raw)
 	if err != nil {
 		return "", err
 	}
-	if name == "" {
-		return "", errNoRemainder
+	if len(segs) == 0 {
+		return workspace, nil
 	}
-	parts := []string{workspace}
-	if preserve {
-		parts = append(parts, splitRepo(repoPath)...)
-	}
-	parts = append(parts, parents...)
-	parts = append(parts, name)
+	parts := append([]string{workspace}, segs...)
 	return filepath.Join(parts...), nil
 }
 

@@ -102,10 +102,13 @@ func cloneCards(ctx context.Context, workspace string, cards []card.Card, preser
 		for _, item := range ready {
 			var dest string
 			var destErr error
-			if item.val.State == github.PropertyString {
-				dest, destErr = attributeDestination(workspace, item.card.Path, item.card.Name, item.val.Value, preserve)
-			} else {
-				dest, destErr = destination(workspace, item.card.FullName(), preserve)
+			switch item.val.State {
+			case github.PropertyString:
+				dest, destErr = attributeDestination(workspace, item.val.Value)
+			case github.PropertyAbsent:
+				dest = workspace
+			default:
+				destErr = github.ErrPropertyNotString
 			}
 			if err := consider(item.card, dest, destErr); err != nil {
 				return true, err
