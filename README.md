@@ -17,6 +17,9 @@ documentation linked below. This tree is the implementation.
 | `profile` | Create, show, edit, and delete named YAML profiles |
 | `report` | List repositories selected on the SCM; the SCM is left unchanged |
 | `clone` | Clone the selected repositories into `--workspace` with the host `git` |
+| `sync` | Pull and push one branch across working copies already on it |
+| `switch` | Switch selected working copies to one branch |
+| `merge` | Merge a local branch into another across working copies |
 | `publish` | For unpublished local copies, create the SCM repository, add a remote, and push |
 
 `githerd --help` prints the command tree registered in the binary.
@@ -31,6 +34,9 @@ documentation linked below. This tree is the implementation.
 | `profile` | [profile](https://github.com/git-herder/documentation-specifications/blob/master/cli/profile/index.md) |
 | `report` | [report](https://github.com/git-herder/documentation-specifications/blob/master/cli/report/index.md) |
 | `clone` | [clone](https://github.com/git-herder/documentation-specifications/blob/master/cli/clone/index.md) |
+| `sync` | [sync](https://github.com/git-herder/documentation-specifications/blob/master/cli/sync/index.md) |
+| `switch` | [switch](https://github.com/git-herder/documentation-specifications/blob/master/cli/switch/index.md) |
+| `merge` | [merge](https://github.com/git-herder/documentation-specifications/blob/master/cli/merge/index.md) |
 | `publish` | [publish](https://github.com/git-herder/documentation-specifications/blob/master/cli/publish/index.md) |
 | Application structure | [Architecture](https://github.com/git-herder/documentation-architecture/blob/master/README.md) |
 | Recorded technical choices | [ADRs](https://github.com/git-herder/ADR) |
@@ -40,8 +46,8 @@ documentation linked below. This tree is the implementation.
 
 - Go. The project supports the two latest minor releases. The `go`
   directive in `go.mod` is the minimum this checkout builds with.
-- `git` on `PATH` for `clone` and `publish`. The binary runs that
-  `git` and does not embed one.
+- `git` on `PATH` for `clone`, `sync`, `switch`, `merge`, and `publish`.
+  The binary runs that `git` and does not embed one.
 
 ## Build
 
