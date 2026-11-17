@@ -74,14 +74,19 @@ func (u *UI) ConfirmRiskyEnumeration() (bool, error) {
 		Show()
 }
 
-// ConfirmMass спрашивает согласие, когда объектов больше порога.
+// ConfirmMass спрашивает согласие на публикацию, когда объектов больше порога.
 // Без терминала на stdin или stdout возвращает ошибку: продолжать нельзя.
 // false — явный отказ.
 func (u *UI) ConfirmMass(n int) (bool, error) {
+	return u.ConfirmMassPrompt(fmt.Sprintf("Continue publishing %d working copies?", n))
+}
+
+// ConfirmMassPrompt спрашивает согласие с заданной формулировкой.
+// Формулировка включает число объектов. false — явный отказ.
+func (u *UI) ConfirmMassPrompt(prompt string) (bool, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 		return false, fmt.Errorf("confirmation is not available without a terminal")
 	}
-	prompt := fmt.Sprintf("Continue publishing %d working copies?", n)
 	u.WarningStderr(prompt)
 	return pterm.DefaultInteractiveConfirm.
 		WithDefaultText("Continue?").

@@ -11,6 +11,7 @@ import (
 	_ "github.com/git-herder/git-herder/internal/cli/clone"
 	_ "github.com/git-herder/git-herder/internal/cli/publish"
 	reportcmd "github.com/git-herder/git-herder/internal/cli/report"
+	_ "github.com/git-herder/git-herder/internal/cli/sync"
 	"github.com/git-herder/git-herder/internal/diag/logging"
 )
 
