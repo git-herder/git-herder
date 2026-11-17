@@ -1,9 +1,12 @@
 package workspace
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Snowbridge/git-herder/internal/diag/console"
@@ -242,10 +245,57 @@ func TestReadDirErrorDropsPartial(t *testing.T) {
 }
 
 func TestEmptyWorkspace(t *testing.T) {
-	got, err := Resolve(Request{Root: t.TempDir()})
-	if err != nil || len(got) != 0 {
-		t.Fatalf("got %v err %v", got, err)
+	text := captureStderr(t, func() {
+		got, err := Resolve(Request{Root: t.TempDir()})
+		if err != nil || len(got) != 0 {
+			t.Fatalf("got %v err %v", got, err)
+		}
+	})
+	if !strings.Contains(text, "no matching working copies") {
+		t.Fatalf("stderr %q", text)
 	}
+
+	root := t.TempDir()
+	makeRepo(t, root)
+	text = captureStderr(t, func() {
+		got, err := Resolve(Request{Root: root})
+		if err != nil || len(got) != 1 {
+			t.Fatalf("got %v err %v", got, err)
+		}
+	})
+	if strings.Contains(text, "no matching working copies") {
+		t.Fatalf("warned for a found copy: %q", text)
+	}
+
+	text = captureStderr(t, func() {
+		missing := filepath.Join(t.TempDir(), "missing")
+		if _, err := Resolve(Request{Root: missing}); err == nil {
+			t.Fatal("expected read error")
+		}
+	})
+	if strings.Contains(text, "no matching working copies") {
+		t.Fatalf("warned on error: %q", text)
+	}
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = orig }()
+	fn()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
 }
 
 type fakePicker struct {

@@ -76,10 +76,16 @@ func Resolve(req Request) (out []Copy, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if !req.Interactive || len(kept) == 0 {
-		return kept, nil
+	if req.Interactive && len(kept) > 0 {
+		kept, err = pick(kept, req.Picker)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return pick(kept, req.Picker)
+	if len(kept) == 0 {
+		console.New().WarningStderr("no matching working copies")
+	}
+	return kept, nil
 }
 
 func applyKeep(in []Copy, keep Keep) ([]Copy, error) {
