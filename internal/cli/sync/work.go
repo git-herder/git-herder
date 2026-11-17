@@ -47,24 +47,24 @@ func (j *syncJob) step(ctx context.Context, branch, remote string, pullOpts, pus
 	names, out, err := git.RemoteNames(ctx, j.dir)
 	logGit(logf, out)
 	if err != nil {
-		return j.done(retries, nil, signFail, signFail, []string{shortReason(out, "получение не удалось"), "отправка не начиналась"}, print)
+		return j.done(retries, nil, signFail, signFail, []string{shortReason(out, "pull failed"), "push did not start"}, print)
 	}
 	if !hasName(names, remote) {
-		return j.done(retries, nil, signFail, signFail, []string{"ремота нет", "отправка не начиналась"}, print)
+		return j.done(retries, nil, signFail, signFail, []string{"remote not found", "push did not start"}, print)
 	}
 	cfg, err := j.configArgs(ctx, remote, auth, git, logf)
 	if err != nil {
-		return j.done(retries, nil, signFail, signFail, []string{err.Error(), "отправка не начиналась"}, print)
+		return j.done(retries, nil, signFail, signFail, []string{err.Error(), "push did not start"}, print)
 	}
 	j.steps.Start("ls-remote", j.rel, j.attempts)
 	remoteOID, found, out, err := git.LsRemoteHead(ctx, j.dir, remote, branch, cfg)
 	j.steps.Stop()
 	logGit(logf, out)
 	if out.Exit == 128 {
-		return j.done(retries, queueErr(err, out, "получение не удалось"), signFail, signFail, []string{shortReason(out, "получение не удалось"), "отправка не начиналась"}, print)
+		return j.done(retries, queueErr(err, out, "pull failed"), signFail, signFail, []string{shortReason(out, "pull failed"), "push did not start"}, print)
 	}
 	if err != nil {
-		return j.done(retries, nil, signFail, signFail, []string{shortReason(out, "получение не удалось"), "отправка не начиналась"}, print)
+		return j.done(retries, nil, signFail, signFail, []string{shortReason(out, "pull failed"), "push did not start"}, print)
 	}
 
 	pullSign := signSame
@@ -74,7 +74,7 @@ func (j *syncJob) step(ctx context.Context, branch, remote string, pullOpts, pus
 		before, bout, berr := git.HeadOID(ctx, j.dir)
 		logGit(logf, bout)
 		if berr != nil {
-			return j.done(retries, nil, signFail, signFail, []string{shortReason(bout, "получение не удалось"), "отправка не начиналась"}, print)
+			return j.done(retries, nil, signFail, signFail, []string{shortReason(bout, "pull failed"), "push did not start"}, print)
 		}
 		j.steps.Start("pull", j.rel, j.attempts)
 		pout, perr := git.Pull(ctx, j.dir, pullOpts, remote, branch, cfg)
@@ -88,16 +88,16 @@ func (j *syncJob) step(ctx context.Context, branch, remote string, pullOpts, pus
 				pullNotes = append(pullNotes, note)
 			}
 		} else if merr != nil {
-			return j.done(retries, nil, signFail, signFail, []string{merr.Error(), "отправка не начиналась"}, print)
+			return j.done(retries, nil, signFail, signFail, []string{merr.Error(), "push did not start"}, print)
 		} else if pout.Exit == 128 {
-			return j.done(retries, queueErr(perr, pout, "получение не удалось"), signFail, signFail, []string{shortReason(pout, "получение не удалось"), "отправка не начиналась"}, print)
+			return j.done(retries, queueErr(perr, pout, "pull failed"), signFail, signFail, []string{shortReason(pout, "pull failed"), "push did not start"}, print)
 		} else if perr != nil {
-			return j.done(retries, nil, signFail, signFail, []string{shortReason(pout, "получение не удалось"), "отправка не начиналась"}, print)
+			return j.done(retries, nil, signFail, signFail, []string{shortReason(pout, "pull failed"), "push did not start"}, print)
 		} else {
 			after, aout, aerr := git.HeadOID(ctx, j.dir)
 			logGit(logf, aout)
 			if aerr != nil {
-				return j.done(retries, nil, signFail, signFail, []string{shortReason(aout, "получение не удалось"), "отправка не начиналась"}, print)
+				return j.done(retries, nil, signFail, signFail, []string{shortReason(aout, "pull failed"), "push did not start"}, print)
 			}
 			if after != before {
 				pullSign = signIn
@@ -110,21 +110,21 @@ func (j *syncJob) step(ctx context.Context, branch, remote string, pullOpts, pus
 	j.steps.Stop()
 	logGit(logf, pushOut)
 	if pushOut.Exit == 128 && merged {
-		notes := append(append([]string{}, pullNotes...), shortReason(pushOut, "отправка не удалась"))
+		notes := append(append([]string{}, pullNotes...), shortReason(pushOut, "push failed"))
 		return j.done(retries, nil, pullSign, signFail, notes, print)
 	}
 	if pushOut.Exit == 128 {
-		notes := append(append([]string{}, pullNotes...), shortReason(pushOut, "отправка не удалась"))
-		return j.done(retries, queueErr(pushErr, pushOut, "отправка не удалась"), pullSign, signFail, notes, print)
+		notes := append(append([]string{}, pullNotes...), shortReason(pushOut, "push failed"))
+		return j.done(retries, queueErr(pushErr, pushOut, "push failed"), pullSign, signFail, notes, print)
 	}
 	if pushErr != nil {
-		notes := append(append([]string{}, pullNotes...), shortReason(pushOut, "отправка не удалась"))
+		notes := append(append([]string{}, pullNotes...), shortReason(pushOut, "push failed"))
 		return j.done(retries, nil, pullSign, signFail, notes, print)
 	}
 	head, hout, herr := git.HeadOID(ctx, j.dir)
 	logGit(logf, hout)
 	if herr != nil {
-		notes := append(append([]string{}, pullNotes...), shortReason(hout, "отправка не удалась"))
+		notes := append(append([]string{}, pullNotes...), shortReason(hout, "push failed"))
 		return j.done(retries, nil, pullSign, signFail, notes, print)
 	}
 	pushSign := signSame
@@ -146,7 +146,7 @@ func (j *syncJob) configArgs(ctx context.Context, remote string, auth gitexec.HT
 		return nil, err
 	}
 	if missing || strings.TrimSpace(raw) == "" {
-		return nil, fmt.Errorf("ремота нет")
+		return nil, fmt.Errorf("remote not found")
 	}
 	return auth.InsteadOf(raw)
 }

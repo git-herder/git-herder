@@ -16,8 +16,8 @@ func TestFormatConflictNotes(t *testing.T) {
 	if got := conflictNote([]string{"a", "b", "c", "d"}); got != "⚔️ a, b, c and 1 more files" {
 		t.Fatalf("%q", got)
 	}
-	line := formatResult(signFail, signFail, "glossary", []string{"получение не удалось", "отправка не начиналась"})
-	want := "❌ ❌ glossary\n    получение не удалось\n    отправка не начиналась"
+	line := formatResult(signFail, signFail, "glossary", []string{"pull failed", "push did not start"})
+	want := "❌ ❌ glossary\n    pull failed\n    push did not start"
 	if line != want {
 		t.Fatalf("%q", line)
 	}

@@ -44,7 +44,7 @@ type copyJob struct {
 func handleSwitch(ctx context.Context, dir string, s cli.SwitchSettings, git gitOps, logf func(string), steps *console.GitStep, label string) (string, string, []string) {
 	mem, ok := rememberSwitch(ctx, dir, s, git, logf)
 	if !ok {
-		return signFail, signSkip, []string{"проверка копии не удалась", "не начинался"}
+		return signFail, signSkip, []string{"working copy check failed", "did not start"}
 	}
 	if steps != nil {
 		steps.Start("switch", label, 1)
@@ -71,28 +71,28 @@ func handleSwitch(ctx context.Context, dir string, s cli.SwitchSettings, git git
 		names, uout, uerr := git.Unmerged(ctx, dir)
 		logOut(logf, uout)
 		if uerr != nil {
-			return signFail, signSkip, []string{"проверка копии не удалась", "не начинался"}
+			return signFail, signSkip, []string{"working copy check failed", "did not start"}
 		}
 		if note := conflictNote(names); note != "" {
 			return signConflict, signSkip, []string{note}
 		}
 	}
 	if err != nil {
-		return signFail, signSkip, []string{shortReason(out, "переключение не удалось"), "не начинался"}
+		return signFail, signSkip, []string{shortReason(out, "switch failed"), "did not start"}
 	}
 
 	name, nout, nerr := git.SymbolicHead(ctx, dir)
 	logOut(logf, nout)
 	if nerr != nil {
-		return signFail, signSkip, []string{"проверка копии не удалась", "не начинался"}
+		return signFail, signSkip, []string{"working copy check failed", "did not start"}
 	}
 	oid, missing, hout, herr := git.HeadCommit(ctx, dir)
 	logOut(logf, hout)
 	if herr != nil {
-		return signFail, signSkip, []string{"проверка копии не удалась", "не начинался"}
+		return signFail, signSkip, []string{"working copy check failed", "did not start"}
 	}
 	if name != s.Branch {
-		return signFail, signSkip, []string{"переключение не удалось", "не начинался"}
+		return signFail, signSkip, []string{"switch failed", "did not start"}
 	}
 	changed := !mem.hadBranch || mem.branch != name
 	if mem.hadOID != !missing || (mem.hadOID && oid != mem.oid) {
@@ -143,7 +143,7 @@ func settleUpstream(ctx context.Context, dir string, s cli.SwitchSettings, git g
 	out, err := git.BranchUpstream(ctx, dir, s.Branch)
 	logOut(logf, out)
 	if launchFailed(out, err) {
-		return signFail, "проверка копии не удалась"
+		return signFail, "working copy check failed"
 	}
 	want := s.Track + "/" + s.Branch
 	if line, one := oneLine(out.Stdout); err == nil && one && line == want {
@@ -152,7 +152,7 @@ func settleUpstream(ctx context.Context, dir string, s cli.SwitchSettings, git g
 	out, err = git.SetUpstream(ctx, dir, s.Track, s.Branch)
 	logOut(logf, out)
 	if err != nil {
-		return signFail, shortReason(out, "вышестоящая ветка не записана")
+		return signFail, shortReason(out, "upstream branch was not set")
 	}
 	return signOK, ""
 }

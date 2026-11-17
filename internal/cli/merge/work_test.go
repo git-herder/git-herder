@@ -45,7 +45,7 @@ func TestMergeExamples(t *testing.T) {
 	dirty := &fakeGit{entryBranch: "main", dirty: true}
 	res = handleMerge(ctx, "dir", sample(), authNone(), dirty, nil, nil, "documentation/product-intent")
 	got = formatMerge(res.signs, "documentation/product-intent", res.notes)
-	want = "⏩ ⏩ ⏩ ⏩ ⏩ documentation/product-intent\n    есть незакоммиченные изменения"
+	want = "⏩ ⏩ ⏩ ⏩ ⏩ documentation/product-intent\n    uncommitted changes"
 	if got != want || !res.precheck || dirty.fetches != 0 {
 		t.Fatalf("%q precheck %v fetches %d", got, res.precheck, dirty.fetches)
 	}
@@ -74,7 +74,7 @@ func TestMergeStayKeepAndRestore(t *testing.T) {
 		t.Fatalf("signs %v deletes %d", res.signs, git.deletes)
 	}
 
-	failed := &fakeGit{entryBranch: "other", afterBranch: "main", oidAfterSwitch: "aaa", mergeExit: 1, mergeStderr: "слияние не удалось"}
+	failed := &fakeGit{entryBranch: "other", afterBranch: "main", oidAfterSwitch: "aaa", mergeExit: 1, mergeStderr: "merge failed"}
 	res = handleMerge(ctx, "dir", sample(), authNone(), failed, nil, nil, "copy")
 	if res.signs[2] != signFail || res.signs[3] != signSkip || res.signs[4] != signOK || len(failed.switchReqs) != 2 || failed.deletes != 0 {
 		t.Fatalf("%v switches %d", res.signs, len(failed.switchReqs))
@@ -103,7 +103,7 @@ func TestMergeFetchAndSwitchFailures(t *testing.T) {
 		t.Fatalf("%v", res.notes)
 	}
 
-	sw := &fakeGit{entryBranch: "other", switchExit: 1, switchStderr: "переключение не удалось"}
+	sw := &fakeGit{entryBranch: "other", switchExit: 1, switchStderr: "switch failed"}
 	res = handleMerge(ctx, "dir", sample(), authNone(), sw, nil, nil, "copy")
 	if res.signs[1] != signFail || len(sw.switchReqs) != 1 || sw.merges != 0 {
 		t.Fatalf("%v switches %d merges %d", res.signs, len(sw.switchReqs), sw.merges)
@@ -111,7 +111,7 @@ func TestMergeFetchAndSwitchFailures(t *testing.T) {
 
 	read := &fakeGit{entryBranch: "other", afterSymErr: errString("git failed"), oidAfterSwitch: "aaa"}
 	res = handleMerge(ctx, "dir", sample(), authNone(), read, nil, nil, "copy")
-	if res.signs[1] != signFail || res.notes[0] != "проверка копии не удалась" || len(read.switchReqs) != 2 || read.merges != 0 {
+	if res.signs[1] != signFail || res.notes[0] != "working copy check failed" || len(read.switchReqs) != 2 || read.merges != 0 {
 		t.Fatalf("%v notes %v switches %d", res.signs, res.notes, len(read.switchReqs))
 	}
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/git-herder/git-herder/internal/scm"
 )
 
-const pushFallback = "отправка не удалась"
+const pushFallback = "push failed"
 
 type resultKind int
 

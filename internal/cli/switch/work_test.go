@@ -40,10 +40,10 @@ func TestSwitchExamples(t *testing.T) {
 		t.Fatal("upstream ran after conflict")
 	}
 
-	failed := &fakeGit{symName: "main", oid: "aaa", switchExit: 1, switchStderr: "переключение не удалось"}
+	failed := &fakeGit{symName: "main", oid: "aaa", switchExit: 1, switchStderr: "switch failed"}
 	sw, up, notes = handleSwitch(ctx, "dir", cli.SwitchSettings{Branch: branch, TrackSet: true, Track: "origin"}, failed, nil, nil, "documentation/product-intent")
 	got = formatSwitch(sw, up, "documentation/product-intent", notes)
-	want = "❌ ⏩ documentation/product-intent\n    переключение не удалось\n    не начинался"
+	want = "❌ ⏩ documentation/product-intent\n    switch failed\n    did not start"
 	if got != want {
 		t.Fatalf("%q", got)
 	}
@@ -51,10 +51,10 @@ func TestSwitchExamples(t *testing.T) {
 		t.Fatal("upstream ran after failed switch")
 	}
 
-	tracked := &fakeGit{symName: "main", symAfter: branch, oid: "aaa", oidAfter: "bbb", setExit: 1, setStderr: "вышестоящая ветка не записана"}
+	tracked := &fakeGit{symName: "main", symAfter: branch, oid: "aaa", oidAfter: "bbb", setExit: 1, setStderr: "upstream branch was not set"}
 	sw, up, notes = handleSwitch(ctx, "dir", cli.SwitchSettings{Branch: branch, TrackSet: true, Track: "origin"}, tracked, nil, nil, "documentation/adr")
 	got = formatSwitch(sw, up, "documentation/adr", notes)
-	want = "✔️ ❌ documentation/adr\n    вышестоящая ветка не записана"
+	want = "✔️ ❌ documentation/adr\n    upstream branch was not set"
 	if got != want {
 		t.Fatalf("%q", got)
 	}
@@ -88,7 +88,7 @@ func TestSwitchCheckFailureSkipsSwitch(t *testing.T) {
 	git := &fakeGit{symErr: errString("git failed")}
 	sw, up, notes := handleSwitch(context.Background(), "dir", cli.SwitchSettings{Branch: "feature"}, git, nil, nil, "x")
 	got := formatSwitch(sw, up, "x", notes)
-	if got != "❌ ⏩ x\n    проверка копии не удалась\n    не начинался" || git.switches != 0 {
+	if got != "❌ ⏩ x\n    working copy check failed\n    did not start" || git.switches != 0 {
 		t.Fatalf("%q switches %d", got, git.switches)
 	}
 }

@@ -67,7 +67,7 @@ func TestSyncMissingRemoteName(t *testing.T) {
 	if err != nil || !bad || git.lses != 0 {
 		t.Fatalf("bad=%v err=%v lses=%d", bad, err, git.lses)
 	}
-	want := "❌ ❌ documentation/architecture\n    ремота нет\n    отправка не начиналась"
+	want := "❌ ❌ documentation/architecture\n    remote not found\n    push did not start"
 	if lines[0] != want {
 		t.Fatalf("%q", lines[0])
 	}
@@ -91,7 +91,7 @@ func TestSyncPullRejectedNoRetry(t *testing.T) {
 	if err != nil || !bad || git.pulls != 1 || git.pushes != 0 {
 		t.Fatalf("bad=%v err=%v pulls=%d pushes=%d", bad, err, git.pulls, git.pushes)
 	}
-	want := "❌ ❌ documentation/architecture\n    Could not read from remote repository.\n    отправка не начиналась"
+	want := "❌ ❌ documentation/architecture\n    Could not read from remote repository.\n    push did not start"
 	if lines[0] != want {
 		t.Fatalf("%q", lines[0])
 	}
@@ -101,7 +101,7 @@ func TestSyncPullEmptyOutput(t *testing.T) {
 	git := readyGit()
 	git.pullExit = 1
 	lines, _, _ := runOne(t, git, 0, resolved.OnErrorContinue, gitexec.HTTPSAuth{}, nil, nil)
-	if !strings.Contains(lines[0], "получение не удалось") {
+	if !strings.Contains(lines[0], "pull failed") {
 		t.Fatalf("%q", lines[0])
 	}
 }
@@ -176,7 +176,7 @@ func TestSyncNetworkRetriesOnce(t *testing.T) {
 	if err != nil || !bad || git.lses != 2 || git.pulls != 0 || len(lines) != 1 {
 		t.Fatalf("bad=%v err=%v lses=%d lines=%q", bad, err, git.lses, lines)
 	}
-	if !strings.Contains(lines[0], "Could not resolve host") || !strings.Contains(lines[0], "отправка не начиналась") {
+	if !strings.Contains(lines[0], "Could not resolve host") || !strings.Contains(lines[0], "push did not start") {
 		t.Fatalf("%q", lines[0])
 	}
 }

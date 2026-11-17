@@ -117,7 +117,7 @@ func TestSwitchFilterAndProfile(t *testing.T) {
 
 func TestSwitchAbortAndRetries(t *testing.T) {
 	t.Setenv("GITHERD_PROFILE_DIR", t.TempDir())
-	git := &fakeGit{symName: "main", oid: "aaa", switchExit: 1, switchStderr: "переключение не удалось"}
+	git := &fakeGit{symName: "main", oid: "aaa", switchExit: 1, switchStderr: "switch failed"}
 	lines := install(t, git)
 	ws := t.TempDir()
 	makeCopy(t, ws, "a")

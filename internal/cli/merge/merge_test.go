@@ -90,7 +90,7 @@ func TestMergeDefaultBranchFilterAndPrecheck(t *testing.T) {
 	if err == nil || git.fetches != 0 || len(*lines) != 1 {
 		t.Fatalf("err %v fetches %d lines %v", err, git.fetches, *lines)
 	}
-	if (*lines)[0] != "⏩ ⏩ ⏩ ⏩ ⏩ documentation/architecture\n    есть незакоммиченные изменения" {
+	if (*lines)[0] != "⏩ ⏩ ⏩ ⏩ ⏩ documentation/architecture\n    uncommitted changes" {
 		t.Fatalf("%q", (*lines)[0])
 	}
 	git.dirty = false

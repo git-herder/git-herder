@@ -65,7 +65,7 @@ func handleMerge(ctx context.Context, dir string, s cli.MergeSettings, auth gite
 
 	cfg, err := fetchConfig(ctx, dir, s.Remote, auth, git, logf)
 	if err != nil {
-		return at(0, "получение не удалось")
+		return at(0, "fetch failed")
 	}
 	if steps != nil {
 		steps.Start("fetch", label, 1)
@@ -76,20 +76,20 @@ func handleMerge(ctx context.Context, dir string, s cli.MergeSettings, auth gite
 	}
 	logOut(logf, fout)
 	if ferr != nil {
-		return at(0, shortReason(fout, "получение не удалось"))
+		return at(0, shortReason(fout, "fetch failed"))
 	}
 
 	swReq := gitexec.SwitchRequest{Opts: joinOpts(s.GitOpts, s.SwitchOpts), Target: s.To}
 	sout, serr := git.Switch(ctx, dir, swReq)
 	logOut(logf, sout)
 	if serr != nil {
-		return placed(signOK, signFail, signSkip, signSkip, signSkip, shortReason(sout, "переключение не удалось"))
+		return placed(signOK, signFail, signSkip, signSkip, signSkip, shortReason(sout, "switch failed"))
 	}
 	name, nout, nerr := git.SymbolicHead(ctx, dir)
 	logOut(logf, nout)
 	changed := detached || name != entryBranch
 	if nerr != nil {
-		res := placed(signOK, signFail, signSkip, signSkip, signSkip, "проверка копии не удалась")
+		res := placed(signOK, signFail, signSkip, signSkip, signSkip, "working copy check failed")
 		ret, note := restore(ctx, dir, s, detached, entryBranch, entryOID, git, logf)
 		res.signs[4] = ret
 		if note != "" {
@@ -104,7 +104,7 @@ func handleMerge(ctx context.Context, dir string, s cli.MergeSettings, auth gite
 	headAfter, missing, hout, herr := git.HeadCommit(ctx, dir)
 	logOut(logf, hout)
 	if herr != nil || missing {
-		res := placed(signOK, signFail, signSkip, signSkip, signSkip, "проверка копии не удалась")
+		res := placed(signOK, signFail, signSkip, signSkip, signSkip, "working copy check failed")
 		if changed {
 			ret, note := restore(ctx, dir, s, detached, entryBranch, entryOID, git, logf)
 			res.signs[4] = ret
@@ -125,13 +125,13 @@ func handleMerge(ctx context.Context, dir string, s cli.MergeSettings, auth gite
 	logOut(logf, mout)
 	pending, files, cerr := mergePending(ctx, git, dir, logf)
 	if cerr != nil {
-		return placed(signOK, swSign, signFail, signSkip, signSkip, "проверка копии не удалась")
+		return placed(signOK, swSign, signFail, signSkip, signSkip, "working copy check failed")
 	}
 	if pending {
 		return placed(signOK, swSign, signConflict, signSkip, signSkip, conflictNote(files))
 	}
 	if merr != nil {
-		res := placed(signOK, swSign, signFail, signSkip, signSkip, shortReason(mout, "слияние не удалось"))
+		res := placed(signOK, swSign, signFail, signSkip, signSkip, shortReason(mout, "merge failed"))
 		if changed {
 			ret, note := restore(ctx, dir, s, detached, entryBranch, entryOID, git, logf)
 			res.signs[4] = ret
@@ -146,7 +146,7 @@ func handleMerge(ctx context.Context, dir string, s cli.MergeSettings, auth gite
 	now, missing, aout, aerr := git.HeadCommit(ctx, dir)
 	logOut(logf, aout)
 	if aerr != nil || missing {
-		return placed(signOK, swSign, signFail, signSkip, signSkip, "проверка копии не удалась")
+		return placed(signOK, swSign, signFail, signSkip, signSkip, "working copy check failed")
 	}
 	mergeSign := signSame
 	if now != headAfter {
@@ -159,7 +159,7 @@ func rememberEntry(ctx context.Context, dir string, git gitOps, logf func(string
 	name, out, err := git.SymbolicHead(ctx, dir)
 	logOut(logf, out)
 	if launchFailed(out, err) {
-		return "", false, "", "проверка копии не удалась"
+		return "", false, "", "working copy check failed"
 	}
 	if name != "" {
 		return name, false, "", ""
@@ -167,11 +167,11 @@ func rememberEntry(ctx context.Context, dir string, git gitOps, logf func(string
 	oid, out, err = git.HeadVerify(ctx, dir)
 	logOut(logf, out)
 	if launchFailed(out, err) {
-		return "", false, "", "проверка копии не удалась"
+		return "", false, "", "working copy check failed"
 	}
 	oid = strings.TrimSpace(oid)
 	if err != nil || oid == "" {
-		return "", false, "", "нет коммита на HEAD"
+		return "", false, "", "no commit at HEAD"
 	}
 	return "", true, oid, ""
 }
@@ -180,36 +180,36 @@ func guardCopy(ctx context.Context, dir string, git gitOps, logf func(string)) (
 	ok, out, err := git.VerifyQuiet(ctx, dir, "MERGE_HEAD")
 	logOut(logf, out)
 	if err != nil {
-		return "проверка копии не удалась", false
+		return "working copy check failed", false
 	}
 	if ok {
-		return "слияние уже идёт", false
+		return "merge already in progress", false
 	}
 	ok, out, err = git.VerifyQuiet(ctx, dir, "CHERRY_PICK_HEAD")
 	logOut(logf, out)
 	if err != nil {
-		return "проверка копии не удалась", false
+		return "working copy check failed", false
 	}
 	if ok {
-		return "перенос коммита уже идёт", false
+		return "cherry-pick already in progress", false
 	}
 	for _, name := range []string{"rebase-merge", "rebase-apply"} {
 		path, gout, gerr := git.GitPath(ctx, dir, name)
 		logOut(logf, gout)
 		if gerr != nil {
-			return "проверка копии не удалась", false
+			return "working copy check failed", false
 		}
 		if dirExists(dir, path) {
-			return "перебазирование уже идёт", false
+			return "rebase already in progress", false
 		}
 	}
 	dirty, out, err := git.Porcelain(ctx, dir)
 	logOut(logf, out)
 	if err != nil {
-		return "проверка копии не удалась", false
+		return "working copy check failed", false
 	}
 	if dirty {
-		return "есть незакоммиченные изменения", false
+		return "uncommitted changes", false
 	}
 	return "", true
 }
@@ -230,7 +230,7 @@ func postMerge(ctx context.Context, dir string, s cli.MergeSettings, detached bo
 		logOut(logf, out)
 		if err != nil {
 			del = signFail
-			notes = append(notes, shortReason(out, "удаление ветки не удалось"))
+			notes = append(notes, shortReason(out, "branch delete failed"))
 		} else {
 			del = signOK
 		}
@@ -259,7 +259,7 @@ func restore(ctx context.Context, dir string, s cli.MergeSettings, detached bool
 	out, err := git.Switch(ctx, dir, req)
 	logOut(logf, out)
 	if err != nil {
-		return signFail, shortReason(out, "возврат не удался")
+		return signFail, shortReason(out, "return failed")
 	}
 	return signOK, ""
 }
@@ -273,7 +273,7 @@ func fetchConfig(ctx context.Context, dir, remote string, auth gitexec.HTTPSAuth
 		logf(output)
 	}
 	if err != nil || missing || strings.TrimSpace(raw) == "" {
-		return nil, errString("получение не удалось")
+		return nil, errString("fetch failed")
 	}
 	return auth.InsteadOf(raw)
 }

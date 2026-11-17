@@ -22,7 +22,7 @@ type propertyReader interface {
 	ReadProperty(ctx context.Context, owner, repo, property string) (github.PropertyValue, error)
 }
 
-const failFallback = "клонирование не удалось"
+const failFallback = "clone failed"
 
 type gitFunc func(ctx context.Context, opts []string, repoURL, dest string) (string, error)
 
