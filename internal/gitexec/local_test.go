@@ -21,7 +21,7 @@ func TestSwitchArgsOrder(t *testing.T) {
 		Target:      "feature",
 		StartPoint:  "main",
 	})
-	want := "switch --no-guess --discard-changes -C --detach --ignore-other-worktrees -- feature main"
+	want := "switch --no-guess --discard-changes -C feature --detach --ignore-other-worktrees -- main"
 	if strings.Join(got, " ") != want {
 		t.Fatalf("%v", got)
 	}
@@ -32,6 +32,10 @@ func TestSwitchArgsOrder(t *testing.T) {
 	detached := switchArgs(SwitchRequest{Detach: true, Opts: []string{"-q"}, Target: "abc"})
 	if strings.Join(detached, " ") != "switch --detach -q -- abc" {
 		t.Fatalf("%v", detached)
+	}
+	created := switchArgs(SwitchRequest{NoGuess: true, Create: true, Target: "feature"})
+	if strings.Join(created, " ") != "switch --no-guess -c feature" {
+		t.Fatalf("%v", created)
 	}
 }
 
@@ -131,7 +135,7 @@ func TestLocalFakeGit(t *testing.T) {
 		t.Fatalf("%q %v", res.Stderr, err)
 	}
 	res, err = Switch(ctx, work, SwitchRequest{NoGuess: true, Create: true, Opts: []string{"--quiet"}, Target: "feature", StartPoint: "HEAD"})
-	if err != nil || !strings.Contains(res.Stderr, "switch --no-guess -c --quiet -- feature HEAD") {
+	if err != nil || !strings.Contains(res.Stderr, "switch --no-guess -c feature --quiet -- HEAD") {
 		t.Fatalf("%q %v", res.Stderr, err)
 	}
 	res, err = MergeBranch(ctx, work, []string{"--ff-only"}, "feature")

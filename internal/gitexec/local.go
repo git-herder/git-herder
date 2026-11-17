@@ -161,15 +161,24 @@ func switchArgs(req SwitchRequest) []string {
 	} else if req.Merge {
 		args = append(args, "--merge")
 	}
+	creating := false
 	if req.ForceCreate {
-		args = append(args, "-C")
+		args = append(args, "-C", req.Target)
+		creating = true
 	} else if req.Create {
-		args = append(args, "-c")
+		args = append(args, "-c", req.Target)
+		creating = true
 	}
 	if req.Detach {
 		args = append(args, "--detach")
 	}
 	args = append(args, req.Opts...)
+	if creating {
+		if req.StartPoint != "" {
+			args = append(args, "--", req.StartPoint)
+		}
+		return args
+	}
 	args = append(args, "--", req.Target)
 	if req.StartPoint != "" {
 		args = append(args, req.StartPoint)
