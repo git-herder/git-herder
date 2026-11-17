@@ -3,8 +3,8 @@ package conn
 import (
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/resolved"
-	"github.com/Snowbridge/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/scm"
 )
 
 func TestFromGlobals(t *testing.T) {

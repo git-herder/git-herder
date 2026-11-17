@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/Snowbridge/git-herder/internal/scm/card"
-	"github.com/Snowbridge/git-herder/internal/tstamp"
+	"github.com/git-herder/git-herder/internal/scm/card"
+	"github.com/git-herder/git-herder/internal/tstamp"
 )
 
 func coerceText(text string) any {

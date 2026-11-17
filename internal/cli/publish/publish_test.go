@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/cli"
-	"github.com/Snowbridge/git-herder/internal/diag/console"
-	"github.com/Snowbridge/git-herder/internal/scm"
-	"github.com/Snowbridge/git-herder/internal/scm/conn"
-	gh "github.com/Snowbridge/git-herder/internal/scm/github"
+	"github.com/git-herder/git-herder/internal/cli"
+	"github.com/git-herder/git-herder/internal/diag/console"
+	"github.com/git-herder/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/scm/conn"
+	gh "github.com/git-herder/git-herder/internal/scm/github"
 )
 
 func install(t *testing.T, git gitOps, repo scm.RepositoryCreator) *[]string {

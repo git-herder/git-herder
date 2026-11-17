@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/diag/logging"
 )
 
 // ErrRateLimit — политика abort при нулевом остатке квоты.

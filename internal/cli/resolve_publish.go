@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/diag/logging"
 )
 
 // PublishExisting — что делать, если ремот уже указывает на другой URL.

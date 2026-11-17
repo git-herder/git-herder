@@ -11,17 +11,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Snowbridge/git-herder/internal/appexit"
-	"github.com/Snowbridge/git-herder/internal/cli"
-	"github.com/Snowbridge/git-herder/internal/diag/console"
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/redact"
-	"github.com/Snowbridge/git-herder/internal/resolved"
-	"github.com/Snowbridge/git-herder/internal/scm"
-	"github.com/Snowbridge/git-herder/internal/scm/conn"
-	"github.com/Snowbridge/git-herder/internal/scm/factory"
-	gh "github.com/Snowbridge/git-herder/internal/scm/github"
-	"github.com/Snowbridge/git-herder/internal/workspace"
+	"github.com/git-herder/git-herder/internal/appexit"
+	"github.com/git-herder/git-herder/internal/cli"
+	"github.com/git-herder/git-herder/internal/diag/console"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/redact"
+	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/scm/conn"
+	"github.com/git-herder/git-herder/internal/scm/factory"
+	gh "github.com/git-herder/git-herder/internal/scm/github"
+	"github.com/git-herder/git-herder/internal/workspace"
 )
 
 func init() {

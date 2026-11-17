@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Snowbridge/git-herder/internal/cli"
-	"github.com/Snowbridge/git-herder/internal/resolved"
-	"github.com/Snowbridge/git-herder/internal/retrying"
-	"github.com/Snowbridge/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/cli"
+	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/retrying"
+	"github.com/git-herder/git-herder/internal/scm"
 )
 
 const pushFallback = "отправка не удалась"

@@ -10,8 +10,8 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/scm/card"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/scm/card"
 )
 
 // WriteStdout пишет по строке на репозиторий.

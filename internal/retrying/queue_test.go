@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/diag/logging"
 )
 
 func TestExecuteSuccessRetryContinueAbort(t *testing.T) {

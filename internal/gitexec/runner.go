@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/diag/logging"
 )
 
 // Clone запускает `git clone` и возвращает объединённый stdout и stderr.

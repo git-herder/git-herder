@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/cli"
+	"github.com/git-herder/git-herder/internal/cli"
 )
 
 func TestCloneCommand(t *testing.T) {

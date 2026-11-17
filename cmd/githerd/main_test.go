@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/bootstrap"
+	"github.com/git-herder/git-herder/internal/bootstrap"
 )
 
 func TestMainDelegatesToBootstrap(t *testing.T) {

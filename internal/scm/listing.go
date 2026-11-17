@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Snowbridge/git-herder/internal/scm/card"
+	"github.com/git-herder/git-herder/internal/scm/card"
 )
 
 // DefaultPerPage — размер страницы list, пока per_page не зафиксирован в спеке профиля.

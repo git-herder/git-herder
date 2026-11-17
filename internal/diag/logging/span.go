@@ -13,8 +13,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Snowbridge/git-herder/internal/redact"
-	"github.com/Snowbridge/git-herder/internal/tstamp"
+	"github.com/git-herder/git-herder/internal/redact"
+	"github.com/git-herder/git-herder/internal/tstamp"
 )
 
 const maxValueBytes = 2048
@@ -104,7 +104,7 @@ func callerName(skip int) (fn, loggerName string) {
 }
 
 func splitCaller(full string) (fn, loggerName string) {
-	const prefix = "github.com/Snowbridge/git-herder/internal/"
+	const prefix = "github.com/git-herder/git-herder/internal/"
 	rest := strings.TrimPrefix(full, prefix)
 	if i := strings.Index(rest, ")."); i >= 0 {
 		head := rest[:i]

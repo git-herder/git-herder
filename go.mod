@@ -1,4 +1,4 @@
-module github.com/Snowbridge/git-herder
+module github.com/git-herder/git-herder
 
 go 1.27.1
 

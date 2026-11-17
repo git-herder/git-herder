@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/diag/console"
-	"github.com/Snowbridge/git-herder/internal/resolved"
-	"github.com/Snowbridge/git-herder/internal/scm/card"
-	"github.com/Snowbridge/git-herder/internal/scm/github"
+	"github.com/git-herder/git-herder/internal/diag/console"
+	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/scm/card"
+	"github.com/git-herder/git-herder/internal/scm/github"
 )
 
 func TestCloneSkipFullDir(t *testing.T) {

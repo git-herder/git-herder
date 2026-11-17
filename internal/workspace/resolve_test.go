@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/diag/console"
+	"github.com/git-herder/git-herder/internal/diag/console"
 )
 
 func TestNameAndPath(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Snowbridge/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/resolved"
 )
 
 func TestParseUpstreamResolved(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/scm"
-	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
+	"github.com/git-herder/git-herder/internal/scm"
+	scmhttp "github.com/git-herder/git-herder/internal/scm/http"
 )
 
 type hit struct {

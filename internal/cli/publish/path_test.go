@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/resolved"
 )
 
 func TestGitHostOf(t *testing.T) {

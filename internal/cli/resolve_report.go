@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/scm"
 )
 
 // OutputEmpty — значение --output/--output= без пути (файл с именем по умолчанию).

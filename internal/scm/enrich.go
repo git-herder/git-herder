@@ -3,7 +3,7 @@ package scm
 import (
 	"context"
 
-	"github.com/Snowbridge/git-herder/internal/scm/card"
+	"github.com/git-herder/git-herder/internal/scm/card"
 )
 
 // Enricher догружает одно поле карточки и при успехе полностью его заменяет.

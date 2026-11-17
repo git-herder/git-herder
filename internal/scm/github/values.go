@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/Snowbridge/git-herder/internal/tstamp"
+	"github.com/git-herder/git-herder/internal/tstamp"
 )
 
 // coerceGitHubProperty переводит элемент value из custom properties API в scalar карточки.

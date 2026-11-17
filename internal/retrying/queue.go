@@ -4,7 +4,7 @@ package retrying
 import (
 	"errors"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/diag/logging"
 )
 
 // Policy — что делать после исчерпания повторов.

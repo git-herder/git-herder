@@ -12,9 +12,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/scm"
-	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/scm"
+	scmhttp "github.com/git-herder/git-herder/internal/scm/http"
 )
 
 // PropertyState — исход чтения одного пользовательского атрибута.

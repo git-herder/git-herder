@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/resolved"
-	"github.com/Snowbridge/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/scm"
 )
 
 // ExistingPolicy — что делать с непустым каталогом назначения.

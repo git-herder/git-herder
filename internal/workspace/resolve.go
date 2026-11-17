@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/Snowbridge/git-herder/internal/diag/console"
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/diag/console"
+	"github.com/git-herder/git-herder/internal/diag/logging"
 )
 
 // Copy — рабочая копия: каталог, в котором лежит папка .git.

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Snowbridge/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/resolved"
 )
 
 // gitHost — hostname и порт для URL ремота и сравнения ремотов копии.

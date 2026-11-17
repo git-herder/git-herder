@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/resolved"
-	"github.com/Snowbridge/git-herder/internal/scm"
-	"github.com/Snowbridge/git-herder/internal/scm/conn"
-	"github.com/Snowbridge/git-herder/internal/scm/github"
-	"github.com/Snowbridge/git-herder/internal/scm/gitlab"
-	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/scm/conn"
+	"github.com/git-herder/git-herder/internal/scm/github"
+	"github.com/git-herder/git-herder/internal/scm/gitlab"
+	scmhttp "github.com/git-herder/git-herder/internal/scm/http"
 )
 
 // ClientFactory создаёт listing-адаптеры по conn.Config и критериям.

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Snowbridge/git-herder/internal/scm/card"
+	"github.com/git-herder/git-herder/internal/scm/card"
 )
 
 // ErrMissingURL — в элементе list нет непустого URL страницы репозитория.

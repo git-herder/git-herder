@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/resolved"
-	"github.com/Snowbridge/git-herder/internal/scm/conn"
-	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
+	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/scm/conn"
+	scmhttp "github.com/git-herder/git-herder/internal/scm/http"
 )
 
 func TestBuilderAccumulatesClientSideCriteria(t *testing.T) {

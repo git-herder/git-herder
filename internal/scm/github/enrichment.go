@@ -6,11 +6,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/retrying"
-	"github.com/Snowbridge/git-herder/internal/scm"
-	"github.com/Snowbridge/git-herder/internal/scm/card"
-	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/retrying"
+	"github.com/git-herder/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/scm/card"
+	scmhttp "github.com/git-herder/git-herder/internal/scm/http"
 )
 
 // PropertiesEnricher догружает properties через GET /repos/{owner}/{repo}/properties/values.

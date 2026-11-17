@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/scm"
-	"github.com/Snowbridge/git-herder/internal/scm/card"
-	scmhttp "github.com/Snowbridge/git-herder/internal/scm/http"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/scm/card"
+	scmhttp "github.com/git-herder/git-herder/internal/scm/http"
 )
 
 // LabelsEnricher догружает labels через GET /projects/:id/labels.

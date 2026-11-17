@@ -9,12 +9,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Snowbridge/git-herder/internal/appexit"
-	profilecmd "github.com/Snowbridge/git-herder/internal/cli/profile"
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/profilestore"
-	"github.com/Snowbridge/git-herder/internal/resolved"
-	"github.com/Snowbridge/git-herder/internal/version"
+	"github.com/git-herder/git-herder/internal/appexit"
+	profilecmd "github.com/git-herder/git-herder/internal/cli/profile"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/profilestore"
+	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/version"
 )
 
 // extraCommands — команды, которые пакеты подключают из init.

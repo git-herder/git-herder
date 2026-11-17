@@ -16,8 +16,8 @@ import (
 
 	slogmulti "github.com/samber/slog-multi"
 
-	"github.com/Snowbridge/git-herder/internal/redact"
-	"github.com/Snowbridge/git-herder/internal/tstamp"
+	"github.com/git-herder/git-herder/internal/redact"
+	"github.com/git-herder/git-herder/internal/tstamp"
 )
 
 // Trace — фасад журнала выполнения на один запуск процесса.

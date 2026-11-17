@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Snowbridge/git-herder/internal/profilestore"
+	"github.com/git-herder/git-herder/internal/profilestore"
 )
 
 func TestRunEditInvalidYAMLAfterEditor(t *testing.T) {

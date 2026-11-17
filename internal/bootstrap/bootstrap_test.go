@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/profilestore"
+	"github.com/git-herder/git-herder/internal/profilestore"
 )
 
 func TestRootForTestProfileList(t *testing.T) {

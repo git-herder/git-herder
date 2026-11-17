@@ -11,11 +11,11 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/Snowbridge/git-herder/internal/appexit"
-	"github.com/Snowbridge/git-herder/internal/diag/console"
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/profilestore"
-	"github.com/Snowbridge/git-herder/internal/redact"
+	"github.com/git-herder/git-herder/internal/appexit"
+	"github.com/git-herder/git-herder/internal/diag/console"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/profilestore"
+	"github.com/git-herder/git-herder/internal/redact"
 )
 
 // Register добавляет команду profile к корню.

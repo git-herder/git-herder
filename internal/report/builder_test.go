@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Snowbridge/git-herder/internal/scm/card"
+	"github.com/git-herder/git-herder/internal/scm/card"
 )
 
 func TestWriteJSONSortsAndStdout(t *testing.T) {

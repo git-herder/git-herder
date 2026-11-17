@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Snowbridge/git-herder/internal/cli"
-	_ "github.com/Snowbridge/git-herder/internal/cli/clone"
-	_ "github.com/Snowbridge/git-herder/internal/cli/publish"
-	reportcmd "github.com/Snowbridge/git-herder/internal/cli/report"
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/cli"
+	_ "github.com/git-herder/git-herder/internal/cli/clone"
+	_ "github.com/git-herder/git-herder/internal/cli/publish"
+	reportcmd "github.com/git-herder/git-herder/internal/cli/report"
+	"github.com/git-herder/git-herder/internal/diag/logging"
 )
 
 // Run запускает CLI и завершает процесс с кодом по спеке.

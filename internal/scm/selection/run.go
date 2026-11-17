@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Snowbridge/git-herder/internal/diag/logging"
-	"github.com/Snowbridge/git-herder/internal/resolved"
-	"github.com/Snowbridge/git-herder/internal/retrying"
-	"github.com/Snowbridge/git-herder/internal/scm"
-	"github.com/Snowbridge/git-herder/internal/scm/card"
-	"github.com/Snowbridge/git-herder/internal/scm/conn"
-	"github.com/Snowbridge/git-herder/internal/scm/factory"
+	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/retrying"
+	"github.com/git-herder/git-herder/internal/scm"
+	"github.com/git-herder/git-herder/internal/scm/card"
+	"github.com/git-herder/git-herder/internal/scm/conn"
+	"github.com/git-herder/git-herder/internal/scm/factory"
 )
 
 // Options — повторы, политика и прогресс одного отбора.

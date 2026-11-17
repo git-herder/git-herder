@@ -3,7 +3,7 @@ package publish
 import (
 	"context"
 
-	"github.com/Snowbridge/git-herder/internal/gitexec"
+	"github.com/git-herder/git-herder/internal/gitexec"
 )
 
 // gitOps — операции git в каталоге рабочей копии.
