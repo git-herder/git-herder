@@ -78,6 +78,7 @@ func NewRootCommand() (*cobra.Command, error) {
 	for _, reg := range extraCommands {
 		reg(root)
 	}
+	attachSpecHelp(root)
 
 	return root, nil
 }

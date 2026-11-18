@@ -10,8 +10,10 @@ import (
 )
 
 type copyJob struct {
-	dir string
-	rel string
+	dir  string
+	rel  string
+	name string
+	path string
 }
 
 func runCopies(ctx context.Context, jobs []copyJob, verb string, tail []string, auth gitexec.HTTPSAuth, git GitRunner, logf func(string), steps *console.GitStep, print func(string), abort bool) bool {
@@ -36,14 +38,18 @@ func runCopies(ctx context.Context, jobs []copyJob, verb string, tail []string, 
 }
 
 func runCopy(ctx context.Context, job copyJob, verb string, tail []string, auth gitexec.HTTPSAuth, git GitRunner, logf func(string), steps *console.GitStep) (bool, string) {
+	if tailHasPath(tail) && job.path == "" {
+		return false, emptyRelativePath
+	}
+	expanded := expandTail(tail, job.name, job.path)
 	cfg, note, failed := remoteConfig(ctx, job.dir, auth, git, logf)
 	if failed {
 		return false, note
 	}
-	args := make([]string, 0, len(cfg)+1+len(tail))
+	args := make([]string, 0, len(cfg)+1+len(expanded))
 	args = append(args, cfg...)
 	args = append(args, verb)
-	args = append(args, tail...)
+	args = append(args, expanded...)
 	if steps != nil {
 		steps.Start(verb, job.rel, 1)
 	}

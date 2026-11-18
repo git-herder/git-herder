@@ -445,6 +445,93 @@ func TestVersionHelpAndMissingValue(t *testing.T) {
 	}
 }
 
+func TestTailExpandsPerCopy(t *testing.T) {
+	ws, git, lines := setup(t)
+	makeCopy(t, ws, "billing/api")
+	makeCopy(t, ws, "billing/web")
+	code := bootstrap.RunWithArgs([]string{
+		"--workspace", ws, "remote", "set-url", "origin",
+		"git@github.com:myorg/{name}.git", "group/{path}/{foo}",
+	})
+	if code != 0 {
+		t.Fatalf("code=%d lines=%q", code, *lines)
+	}
+	got := map[string]string{}
+	for _, c := range git.userCalls("remote") {
+		got[filepath.Base(c.dir)] = strings.Join(c.args, " ")
+	}
+	if got["api"] != "remote set-url origin git@github.com:myorg/api.git group/billing/api/{foo}" {
+		t.Fatalf("api=%q", got["api"])
+	}
+	if got["web"] != "remote set-url origin git@github.com:myorg/web.git group/billing/web/{foo}" {
+		t.Fatalf("web=%q", got["web"])
+	}
+	if len(*lines) != 2 {
+		t.Fatalf("lines=%q", *lines)
+	}
+}
+
+func TestEmptyRelativePathSkipsGit(t *testing.T) {
+	ws, git, lines := setup(t)
+	makeCopy(t, ws, "")
+	code := bootstrap.RunWithArgs([]string{"--workspace", ws, "remote", "add", "origin", "{path}.git"})
+	if code != 1 || len(git.calls) != 0 {
+		t.Fatalf("code=%d calls=%v", code, git.calls)
+	}
+	if len(*lines) != 1 || (*lines)[0] != "❌ .\n    empty relative path" {
+		t.Fatalf("lines=%q", *lines)
+	}
+}
+
+func TestRootNameExpandsWithoutPath(t *testing.T) {
+	ws, git, lines := setup(t)
+	makeCopy(t, ws, "")
+	code := bootstrap.RunWithArgs([]string{"--workspace", ws, "remote", "add", "origin", "{name}"})
+	if code != 0 {
+		t.Fatalf("code=%d lines=%q", code, *lines)
+	}
+	got := git.userCalls("remote")
+	want := "remote add origin " + filepath.Base(ws)
+	if len(got) != 1 || strings.Join(got[0].args, " ") != want {
+		t.Fatalf("args=%v want %s", git.calls, want)
+	}
+}
+
+func TestTokenPairsStayLiteralWhileTailExpands(t *testing.T) {
+	ws, git, lines := setup(t)
+	makeCopy(t, ws, "api")
+	git.fn = func(args []string) (gitexec.Result, error) {
+		joined := strings.Join(args, " ")
+		if joined == "remote" || strings.HasPrefix(joined, "remote get-url") {
+			return gitexec.Result{Stdout: "https://example.com/{name}.git\n"}, nil
+		}
+		return gitexec.Result{}, nil
+	}
+	code := bootstrap.RunWithArgs([]string{
+		"--workspace", ws, "--git-https-token", "sekret", "--upstream", "github",
+		"remote", "set-url", "origin", "{name}",
+	})
+	if code != 0 {
+		t.Fatalf("code=%d lines=%q calls=%v", code, *lines, git.calls)
+	}
+	var joined string
+	for _, c := range git.calls {
+		line := strings.Join(c.args, " ")
+		if strings.Contains(line, "set-url") {
+			joined = line
+		}
+	}
+	if joined == "" {
+		t.Fatalf("calls=%v", git.calls)
+	}
+	if !strings.Contains(joined, "insteadOf=https://example.com/{name}.git") {
+		t.Fatalf("pair expanded: %s", joined)
+	}
+	if !strings.HasSuffix(joined, "remote set-url origin api") {
+		t.Fatalf("tail=%s", joined)
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()

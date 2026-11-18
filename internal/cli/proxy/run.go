@@ -111,7 +111,11 @@ func Run(cmd *cobra.Command, tail []string, verb string, ui *console.UI) (err er
 		if err != nil {
 			return fail(ui, err)
 		}
-		jobs = append(jobs, copyJob{dir: c.Dir, rel: rel})
+		name, path, err := copyMarkers(g.Workspace, c.Dir)
+		if err != nil {
+			return fail(ui, err)
+		}
+		jobs = append(jobs, copyJob{dir: c.Dir, rel: rel, name: name, path: path})
 	}
 	logf := func(text string) {
 		if rt.Trace == nil || strings.TrimSpace(text) == "" {

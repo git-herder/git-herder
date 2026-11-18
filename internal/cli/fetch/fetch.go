@@ -20,7 +20,7 @@ func Register(root *cobra.Command) {
 	cmd := &cobra.Command{
 		Use:          "fetch [git arguments]",
 		Short:        "Run git fetch in selected working copies",
-		Long:         "Select working copies and run git fetch in each one. Git Herder flags stay in the prefix. The rest is passed to git unchanged.",
+		Long:         "Select working copies and run git fetch in each one. Git Herder flags stay in the prefix. {name} and {path} in the git tail expand for each copy.",
 		SilenceUsage: true,
 		RunE: func(c *cobra.Command, args []string) error {
 			return proxy.Run(c, args, "fetch", ui)
