@@ -19,7 +19,7 @@ func attachSpecHelp(root *cobra.Command) {
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		base(cmd, args)
 		out := cmd.OutOrStdout()
-		fmt.Fprintln(out, formatSpecLine(specURL(cmd), writerIsTerminal(out)))
+		fmt.Fprintln(out, "\nFor more information refer to specification: "+formatSpecLine(specURL(cmd), writerIsTerminal(out)))
 	})
 }
 
