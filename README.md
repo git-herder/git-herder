@@ -85,3 +85,26 @@ Confirm the binary:
 ```bash
 githerd --version
 ```
+
+## Shell completion
+
+`githerd completion` prints a script for bash, zsh, fish, or PowerShell.
+For bash, add this to `~/.bashrc`:
+
+```bash
+source <(githerd completion bash)
+```
+
+### Windows Git Bash
+
+Git Bash completes the command to the file on disk, so `gith` and Tab
+becomes `githerd.exe`. The script is registered for `githerd`. The
+`.exe` name does not match, so completion does not run.
+
+Add this to `~/.bashrc` as well:
+
+```bash
+shopt -s completion_strip_exe
+```
+
+Bash then strips `.exe` when it completes the command name.
