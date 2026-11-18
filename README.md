@@ -20,6 +20,10 @@ documentation linked below. This tree is the implementation.
 | `sync` | Pull and push one branch across working copies already on it |
 | `switch` | Switch selected working copies to one branch |
 | `merge` | Merge a local branch into another across working copies |
+| `pull` | Run `git pull` in selected working copies |
+| `push` | Run `git push` in selected working copies |
+| `fetch` | Run `git fetch` in selected working copies |
+| `remote` | Run `git remote` in selected working copies |
 | `publish` | For unpublished local copies, create the SCM repository, add a remote, and push |
 
 `githerd --help` prints the command tree registered in the binary.
@@ -37,6 +41,10 @@ documentation linked below. This tree is the implementation.
 | `sync` | [sync](https://github.com/git-herder/documentation-specifications/blob/master/cli/sync/index.md) |
 | `switch` | [switch](https://github.com/git-herder/documentation-specifications/blob/master/cli/switch/index.md) |
 | `merge` | [merge](https://github.com/git-herder/documentation-specifications/blob/master/cli/merge/index.md) |
+| `pull` | [pull](https://github.com/git-herder/documentation-specifications/blob/master/cli/pull/index.md) |
+| `push` | [push](https://github.com/git-herder/documentation-specifications/blob/master/cli/push/index.md) |
+| `fetch` | [fetch](https://github.com/git-herder/documentation-specifications/blob/master/cli/fetch/index.md) |
+| `remote` | [remote](https://github.com/git-herder/documentation-specifications/blob/master/cli/remote/index.md) |
 | `publish` | [publish](https://github.com/git-herder/documentation-specifications/blob/master/cli/publish/index.md) |
 | Application structure | [Architecture](https://github.com/git-herder/documentation-architecture/blob/master/README.md) |
 | Recorded technical choices | [ADRs](https://github.com/git-herder/ADR) |
@@ -46,7 +54,8 @@ documentation linked below. This tree is the implementation.
 
 - Go. The project supports the two latest minor releases. The `go`
   directive in `go.mod` is the minimum this checkout builds with.
-- `git` on `PATH` for `clone`, `sync`, `switch`, `merge`, and `publish`.
+- `git` on `PATH` for `clone`, `sync`, `switch`, `merge`, `pull`, `push`,
+  `fetch`, `remote`, and `publish`.
   The binary runs that `git` and does not embed one.
 
 ## Build

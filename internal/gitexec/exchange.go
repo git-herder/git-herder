@@ -214,6 +214,14 @@ func firstLine(s string) string {
 	return ""
 }
 
+// Run запускает git с уже собранными аргументами.
+// Каталог процесса — dir. Свой разделитель -- сюда не добавляется.
+func Run(ctx context.Context, dir string, args []string) (res Result, err error) {
+	leave := logging.Enter("dir", dir, "n", len(args))
+	defer func() { leave("exit", res.Exit, "err", err) }()
+	return runResult(ctx, dir, args)
+}
+
 func runResult(ctx context.Context, dir string, args []string) (Result, error) {
 	bin, err := exec.LookPath("git")
 	if err != nil {

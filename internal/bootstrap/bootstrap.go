@@ -2,6 +2,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -9,12 +10,17 @@ import (
 
 	"github.com/git-herder/git-herder/internal/cli"
 	_ "github.com/git-herder/git-herder/internal/cli/clone"
+	_ "github.com/git-herder/git-herder/internal/cli/fetch"
 	_ "github.com/git-herder/git-herder/internal/cli/merge"
 	_ "github.com/git-herder/git-herder/internal/cli/publish"
+	_ "github.com/git-herder/git-herder/internal/cli/pull"
+	_ "github.com/git-herder/git-herder/internal/cli/push"
+	_ "github.com/git-herder/git-herder/internal/cli/remote"
 	reportcmd "github.com/git-herder/git-herder/internal/cli/report"
 	_ "github.com/git-herder/git-herder/internal/cli/switch"
 	_ "github.com/git-herder/git-herder/internal/cli/sync"
 	"github.com/git-herder/git-herder/internal/diag/logging"
+	"github.com/git-herder/git-herder/internal/version"
 )
 
 // Run запускает CLI и завершает процесс с кодом по спеке.
@@ -33,8 +39,24 @@ func RunWithArgs(args []string) (code int) {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return 1
 	}
-	root.SetArgs(reportcmd.NormalizeArgs(args))
-	if err := root.Execute(); err != nil {
+	prepared, call, err := cli.PrepareProxyArgs(args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return 2
+	}
+	if call != nil && call.Version {
+		fmt.Printf("githerd version %s\n", version.Semver)
+		return 0
+	}
+	if call != nil && call.Help {
+		prepared = []string{call.Command, "--help"}
+	}
+	root.SetArgs(reportcmd.NormalizeArgs(prepared))
+	ctx := context.Background()
+	if call != nil {
+		ctx = cli.WithProxyCall(ctx, *call)
+	}
+	if err := root.ExecuteContext(ctx); err != nil {
 		code = cli.ExitCodeFromError(err)
 		if cli.ActiveRuntime != nil && cli.ActiveRuntime.Trace != nil {
 			log := cli.ActiveRuntime.Trace.Logger("cli.bootstrap")
