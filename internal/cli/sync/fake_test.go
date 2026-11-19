@@ -39,8 +39,11 @@ type fakeGit struct {
 	oidCalls     int
 	lastCfg      []string
 	lastPullOpts []string
+	lastPushOpts []string
 	lastRemote   string
+	lastBranch   string
 	calls        []string
+	cfgs         [][]string
 }
 
 func (f *fakeGit) Head(ctx context.Context, dir string) (string, bool, string, error) {
@@ -71,7 +74,7 @@ func (f *fakeGit) RemoteURL(ctx context.Context, dir, name string) (string, bool
 func (f *fakeGit) LsRemoteHead(ctx context.Context, dir, remote, branch string, cfg []string) (string, bool, gitOut, error) {
 	f.lses++
 	f.calls = append(f.calls, "ls:"+dir)
-	f.lastCfg = append([]string{}, cfg...)
+	f.noteCall(branch, cfg)
 	f.lastRemote = remote
 	exit := f.lsExit
 	if len(f.lsSeq) > 0 {
@@ -112,8 +115,8 @@ func (f *fakeGit) HeadOID(ctx context.Context, dir string) (string, gitOut, erro
 func (f *fakeGit) Pull(ctx context.Context, dir string, opts []string, remote, branch string, cfg []string) (gitOut, error) {
 	f.pulls++
 	f.lastPullOpts = append([]string{}, opts...)
+	f.noteCall(branch, cfg)
 	f.lastRemote = remote
-	f.lastCfg = append([]string{}, cfg...)
 	out := gitOut{Exit: f.pullExit, Stderr: f.pullStderr, Stdout: f.pullStdout}
 	if f.pullExit != 0 {
 		return out, fmt.Errorf("pull exit %d", f.pullExit)
@@ -123,8 +126,9 @@ func (f *fakeGit) Pull(ctx context.Context, dir string, opts []string, remote, b
 
 func (f *fakeGit) Push(ctx context.Context, dir string, opts []string, remote, branch string, cfg []string) (gitOut, error) {
 	f.pushes++
+	f.lastPushOpts = append([]string{}, opts...)
+	f.noteCall(branch, cfg)
 	f.lastRemote = remote
-	f.lastCfg = append([]string{}, cfg...)
 	out := gitOut{Exit: f.pushExit, Stderr: f.pushStderr}
 	if f.pushExit != 0 {
 		return out, fmt.Errorf("push exit %d", f.pushExit)
@@ -144,6 +148,12 @@ func (f *fakeGit) Unmerged(ctx context.Context, dir string) ([]string, gitOut, e
 		return nil, gitOut{Stderr: "diff failed"}, f.unmergedErr
 	}
 	return append([]string{}, f.unmerged...), gitOut{}, nil
+}
+
+func (f *fakeGit) noteCall(branch string, cfg []string) {
+	f.lastBranch = branch
+	f.lastCfg = append([]string{}, cfg...)
+	f.cfgs = append(f.cfgs, append([]string{}, cfg...))
 }
 
 func readyGit() *fakeGit {
