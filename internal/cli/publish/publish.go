@@ -64,6 +64,8 @@ var confirmMass = func(ui *console.UI, n int) (bool, error) {
 
 var printLine = func(s string) { fmt.Println(s) }
 
+var newResolver = func() *workspace.Resolver { return workspace.Resolve() }
+
 type preflightAPI interface {
 	Preflight(ctx context.Context, org, property string) error
 }
@@ -177,11 +179,12 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 		}
 		rt.Trace.Logger("cli.publish").Info(redact.String(text), "reason", "git")
 	}
-	copies, err := workspace.Resolve().
+	copies, err := newResolver().
 		Workspace(g.Workspace).
 		Path(settings.QP...).
 		Name(settings.QN...).
 		NoRemoteOnHost(host).
+		Log(logf).
 		Interactive(settings.Interactive).
 		Picker(ui).
 		Find(context.Background())

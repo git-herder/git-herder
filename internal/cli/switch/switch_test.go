@@ -18,9 +18,12 @@ func install(t *testing.T, git gitOps) *[]string {
 	var lines []string
 	runner = git
 	printLine = func(s string) { lines = append(lines, s) }
-	restore := workspace.InstallGitForTest(switchWorkspaceGit{git: git})
+	prevResolve := newResolver
+	newResolver = func() *workspace.Resolver {
+		return workspace.Resolve().Git(switchWorkspaceGit{git: git})
+	}
 	t.Cleanup(func() {
-		restore()
+		newResolver = prevResolve
 		runner = prevR
 		printLine = prevP
 		confirmMass = prevC
@@ -47,8 +50,16 @@ func (switchWorkspaceGit) SymbolicHead(context.Context, string) (string, gitexec
 	return "", gitexec.Result{}, nil
 }
 
-func (switchWorkspaceGit) Remotes(context.Context, string) ([]string, string, error) {
-	return nil, "", nil
+func (switchWorkspaceGit) RemoteNames(context.Context, string) ([]string, gitexec.Result, error) {
+	return nil, gitexec.Result{}, nil
+}
+
+func (switchWorkspaceGit) RemoteURL(context.Context, string, string) (string, bool, string, error) {
+	return "", true, "", nil
+}
+
+func (switchWorkspaceGit) RemotePushURL(context.Context, string, string) (string, bool, string, error) {
+	return "", true, "", nil
 }
 
 func makeCopy(t *testing.T, root, rel string) {

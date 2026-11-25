@@ -164,9 +164,12 @@ func stubRunner(t *testing.T) *fakeGit {
 	prev := runner
 	git := &fakeGit{head: "main", branches: map[string]bool{"main": true}}
 	runner = git
-	restore := workspace.InstallGitForTest(publishWorkspaceGit{git: git})
+	prevResolve := newResolver
+	newResolver = func() *workspace.Resolver {
+		return workspace.Resolve().Git(publishWorkspaceGit{git: git})
+	}
 	t.Cleanup(func() {
-		restore()
+		newResolver = prevResolve
 		runner = prev
 	})
 	return git

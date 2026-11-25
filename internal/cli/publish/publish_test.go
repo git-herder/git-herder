@@ -2,6 +2,7 @@ package publish
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,12 +23,15 @@ func install(t *testing.T, git gitOps, repo scm.RepositoryCreator) *[]string {
 	var lines []string
 	runner = git
 	printLine = func(s string) { lines = append(lines, s) }
-	restore := workspace.InstallGitForTest(publishWorkspaceGit{git: git})
+	prevResolve := newResolver
+	newResolver = func() *workspace.Resolver {
+		return workspace.Resolve().Git(publishWorkspaceGit{git: git})
+	}
 	if repo != nil {
 		openCreator = func(conn.Config) (scm.RepositoryCreator, error) { return repo, nil }
 	}
 	t.Cleanup(func() {
-		restore()
+		newResolver = prevResolve
 		runner = prevR
 		openCreator = prevC
 		printLine = prevP
@@ -48,8 +52,32 @@ func (publishWorkspaceGit) SymbolicHead(context.Context, string) (string, gitexe
 	return "", gitexec.Result{}, nil
 }
 
-func (p publishWorkspaceGit) Remotes(ctx context.Context, dir string) ([]string, string, error) {
-	return p.git.Remotes(ctx, dir)
+func (p publishWorkspaceGit) RemoteNames(ctx context.Context, dir string) ([]string, gitexec.Result, error) {
+	urls, _, err := p.git.Remotes(ctx, dir)
+	if err != nil {
+		return nil, gitexec.Result{}, err
+	}
+	names := make([]string, len(urls))
+	for i := range urls {
+		names[i] = fmt.Sprintf("r%d", i)
+	}
+	return names, gitexec.Result{}, nil
+}
+
+func (p publishWorkspaceGit) RemoteURL(ctx context.Context, dir, name string) (string, bool, string, error) {
+	urls, _, err := p.git.Remotes(ctx, dir)
+	if err != nil {
+		return "", false, "", err
+	}
+	var i int
+	if _, scanErr := fmt.Sscanf(name, "r%d", &i); scanErr != nil || i < 0 || i >= len(urls) {
+		return "", true, "", nil
+	}
+	return urls[i], false, "", nil
+}
+
+func (publishWorkspaceGit) RemotePushURL(context.Context, string, string) (string, bool, string, error) {
+	return "", true, "", nil
 }
 
 func makeCopy(t *testing.T, root, rel string) {

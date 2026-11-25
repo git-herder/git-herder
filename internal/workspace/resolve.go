@@ -44,6 +44,8 @@ type Resolver struct {
 	paths       []string
 	names       []string
 	criteria    []criterion
+	git         GitExecutor
+	log         func(string)
 	interactive bool
 	picker      Picker
 }
@@ -75,6 +77,22 @@ func (r *Resolver) Name(qn ...string) *Resolver {
 	return r
 }
 
+// Git задаёт исполнителя критериев. Пустой аргумент уже заданного не затирает.
+// Без вызова критерии идут в GitCliRunner.
+func (r *Resolver) Git(g GitExecutor) *Resolver {
+	if g != nil {
+		r.git = g
+	}
+	return r
+}
+
+// Log принимает stderr и stdout каждого вызова git критерия.
+// Пустую строку резолвер не передаёт. Без вызова вывод в журнал не пишется.
+func (r *Resolver) Log(fn func(string)) *Resolver {
+	r.log = fn
+	return r
+}
+
 // Interactive включает интерактивный отбор после критериев.
 func (r *Resolver) Interactive(on bool) *Resolver {
 	r.interactive = on
@@ -91,7 +109,7 @@ func (r *Resolver) Picker(p Picker) *Resolver {
 // Отсутствие ветки — отсев, не ошибка.
 func (r *Resolver) HasBranch(branch string) *Resolver {
 	r.criteria = append(r.criteria, func(ctx context.Context, c Copy) (bool, error) {
-		return keepHasBranch(ctx, c.Dir, branch)
+		return keepHasBranch(ctx, r.executor(), r.log, c.Dir, branch)
 	})
 	return r
 }
@@ -100,7 +118,7 @@ func (r *Resolver) HasBranch(branch string) *Resolver {
 // Отделённый HEAD и другая ветка — отсев, не ошибка.
 func (r *Resolver) OnBranch(branch string) *Resolver {
 	r.criteria = append(r.criteria, func(ctx context.Context, c Copy) (bool, error) {
-		return keepOnBranch(ctx, c.Dir, branch)
+		return keepOnBranch(ctx, r.executor(), r.log, c.Dir, branch)
 	})
 	return r
 }
@@ -109,9 +127,16 @@ func (r *Resolver) OnBranch(branch string) *Resolver {
 // указывает на host. Совпадение hostname и порта — точное.
 func (r *Resolver) NoRemoteOnHost(host Host) *Resolver {
 	r.criteria = append(r.criteria, func(ctx context.Context, c Copy) (bool, error) {
-		return keepNoRemoteOnHost(ctx, c.Dir, host)
+		return keepNoRemoteOnHost(ctx, r.executor(), r.log, c.Dir, host)
 	})
 	return r
+}
+
+func (r *Resolver) executor() GitExecutor {
+	if r.git != nil {
+		return r.git
+	}
+	return execGit{}
 }
 
 // Find запускает обход, фильтры, критерии и интерактив и возвращает список.
@@ -183,7 +208,7 @@ func applyCriteria(ctx context.Context, in []Copy, criteria []criterion) ([]Copy
 
 func pick(kept []Copy, picker Picker) ([]Copy, error) {
 	if picker == nil {
-		return nil, fmt.Errorf("interactive picker is not set")
+		return nil, fmt.Errorf("interactive selection source is not set")
 	}
 	items := make([]console.SelectItem, len(kept))
 	for i, c := range kept {

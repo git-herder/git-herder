@@ -128,10 +128,9 @@ func TestCriteriaDropsAndStops(t *testing.T) {
 	assertDirs(t, got, []string{filepath.Join(root, "b")})
 
 	calls := 0
-	restore := InstallGitForTest(boomGit{onVerify: func() { calls++ }})
-	t.Cleanup(restore)
 	got, err = Resolve().
 		Workspace(root).
+		Git(boomGit{onVerify: func() { calls++ }}).
 		Interactive(true).
 		Picker(picker).
 		HasBranch("develop").
@@ -202,7 +201,7 @@ func TestInteractive(t *testing.T) {
 	}
 
 	_, err = Resolve().Workspace(root).Interactive(true).Find(context.Background())
-	if err == nil || err.Error() != "interactive picker is not set" {
+	if err == nil || err.Error() != "interactive selection source is not set" {
 		t.Fatal(err)
 	}
 

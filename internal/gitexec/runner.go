@@ -82,7 +82,18 @@ func LocalBranch(ctx context.Context, dir, name string) (ok bool, output string,
 func RemoteURL(ctx context.Context, dir, name string) (remoteURL string, missing bool, output string, err error) {
 	leave := logging.Enter("dir", dir, "name", name)
 	defer func() { leave("missing", missing, "err", err) }()
-	output, err = runIn(ctx, dir, []string{"remote", "get-url", name})
+	return remoteGetURL(ctx, dir, []string{"remote", "get-url", name})
+}
+
+// RemotePushURL читает push-URL ремота. missing — ремота с таким именем нет.
+func RemotePushURL(ctx context.Context, dir, name string) (remoteURL string, missing bool, output string, err error) {
+	leave := logging.Enter("dir", dir, "name", name)
+	defer func() { leave("missing", missing, "err", err) }()
+	return remoteGetURL(ctx, dir, []string{"remote", "get-url", "--push", name})
+}
+
+func remoteGetURL(ctx context.Context, dir string, args []string) (remoteURL string, missing bool, output string, err error) {
+	output, err = runIn(ctx, dir, args)
 	if err == nil {
 		return strings.TrimSpace(output), false, output, nil
 	}

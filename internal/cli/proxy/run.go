@@ -38,6 +38,8 @@ var printLine = func(s string) { fmt.Println(s) }
 
 var asPicker = func(ui *console.UI) workspace.Picker { return ui }
 
+var newResolver = func() *workspace.Resolver { return workspace.Resolve() }
+
 // InstallIOForTest подменяет печать итога и вопрос порога.
 func InstallIOForTest(print func(string), confirm func(*console.UI, string, int) (bool, error)) func() {
 	prevP, prevC := printLine, confirmMass
@@ -80,7 +82,7 @@ func Run(cmd *cobra.Command, tail []string, verb string, ui *console.UI) (err er
 	if statErr != nil || !st.IsDir() {
 		return fail(ui, fmt.Errorf("workspace %s is not a directory", g.Workspace))
 	}
-	copies, err := workspace.Resolve().
+	copies, err := newResolver().
 		Workspace(g.Workspace).
 		Path(settings.QP...).
 		Name(settings.QN...).

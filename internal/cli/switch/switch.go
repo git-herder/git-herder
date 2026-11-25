@@ -59,6 +59,8 @@ var printLine = func(s string) { fmt.Println(s) }
 
 var asPicker = func(ui *console.UI) workspace.Picker { return ui }
 
+var newResolver = func() *workspace.Resolver { return workspace.Resolve() }
+
 func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 	leave := logging.Enter("cmd", cmd.Name())
 	defer func() { leave("err", err) }()
@@ -84,10 +86,11 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 		}
 		rt.Trace.Logger("cli.switch").Info(redact.String(text), "reason", "git")
 	}
-	resolver := workspace.Resolve().
+	resolver := newResolver().
 		Workspace(g.Workspace).
 		Path(settings.QP...).
 		Name(settings.QN...).
+		Log(logf).
 		Interactive(settings.Interactive).
 		Picker(asPicker(ui))
 	if !settings.Create && !settings.ForceCreate {

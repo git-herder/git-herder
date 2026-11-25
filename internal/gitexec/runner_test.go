@@ -108,6 +108,16 @@ func TestRunInFakeGit(t *testing.T) {
 	if _, _, _, err = RemoteURL(context.Background(), work, "origin"); err == nil {
 		t.Fatal("expected git error")
 	}
+	t.Setenv("GITHERD_FAKE_GIT_CODE", "2")
+	_, missing, _, err = RemotePushURL(context.Background(), work, "origin")
+	if err != nil || !missing {
+		t.Fatalf("push missing=%v err=%v", missing, err)
+	}
+	t.Setenv("GITHERD_FAKE_GIT_CODE", "0")
+	t.Setenv("GITHERD_FAKE_GIT_STDOUT", "")
+	if _, _, _, err = RemotePushURL(context.Background(), work, "origin"); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("GITHERD_FAKE_GIT_CODE", "0")
 	if _, err = Push(context.Background(), work, "origin", "main"); err != nil {
 		t.Fatal(err)

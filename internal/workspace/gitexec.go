@@ -12,7 +12,9 @@ import (
 type GitExecutor interface {
 	VerifyQuiet(ctx context.Context, dir, rev string) (ok bool, res gitexec.Result, err error)
 	SymbolicHead(ctx context.Context, dir string) (name string, res gitexec.Result, err error)
-	Remotes(ctx context.Context, dir string) (urls []string, output string, err error)
+	RemoteNames(ctx context.Context, dir string) (names []string, res gitexec.Result, err error)
+	RemoteURL(ctx context.Context, dir, name string) (remoteURL string, missing bool, output string, err error)
+	RemotePushURL(ctx context.Context, dir, name string) (remoteURL string, missing bool, output string, err error)
 }
 
 // execGit — боевой GitCliRunner: git из PATH машины пользователя.
@@ -26,18 +28,14 @@ func (execGit) SymbolicHead(ctx context.Context, dir string) (string, gitexec.Re
 	return gitexec.SymbolicHead(ctx, dir)
 }
 
-func (execGit) Remotes(ctx context.Context, dir string) ([]string, string, error) {
-	return gitexec.Remotes(ctx, dir)
+func (execGit) RemoteNames(ctx context.Context, dir string) ([]string, gitexec.Result, error) {
+	return gitexec.RemoteNames(ctx, dir)
 }
 
-// git — исполнение критериев. В тесте подменяется InstallGitForTest.
-var git GitExecutor = execGit{}
+func (execGit) RemoteURL(ctx context.Context, dir, name string) (string, bool, string, error) {
+	return gitexec.RemoteURL(ctx, dir, name)
+}
 
-// InstallGitForTest подменяет исполнение git критериев и возвращает восстановление.
-func InstallGitForTest(g GitExecutor) func() {
-	prev := git
-	if g != nil {
-		git = g
-	}
-	return func() { git = prev }
+func (execGit) RemotePushURL(ctx context.Context, dir, name string) (string, bool, string, error) {
+	return gitexec.RemotePushURL(ctx, dir, name)
 }
