@@ -1,12 +1,14 @@
 package switchcmd
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/git-herder/git-herder/internal/cli"
 	"github.com/git-herder/git-herder/internal/diag/console"
+	"github.com/git-herder/git-herder/internal/gitexec"
 	"github.com/git-herder/git-herder/internal/workspace"
 )
 
@@ -16,13 +18,37 @@ func install(t *testing.T, git gitOps) *[]string {
 	var lines []string
 	runner = git
 	printLine = func(s string) { lines = append(lines, s) }
+	restore := workspace.InstallGitForTest(switchWorkspaceGit{git: git})
 	t.Cleanup(func() {
+		restore()
 		runner = prevR
 		printLine = prevP
 		confirmMass = prevC
 		asPicker = prevPick
 	})
 	return &lines
+}
+
+// switchWorkspaceGit подставляет git-критерий HasBranch: ответы берутся из fakeGit.
+type switchWorkspaceGit struct {
+	git gitOps
+}
+
+func (s switchWorkspaceGit) VerifyQuiet(ctx context.Context, dir, rev string) (bool, gitexec.Result, error) {
+	f, ok := s.git.(*fakeGit)
+	if !ok {
+		return false, gitexec.Result{}, nil
+	}
+	ok2, out, err := f.VerifyQuiet(ctx, dir, rev)
+	return ok2, gitexec.Result{Exit: out.Exit}, err
+}
+
+func (switchWorkspaceGit) SymbolicHead(context.Context, string) (string, gitexec.Result, error) {
+	return "", gitexec.Result{}, nil
+}
+
+func (switchWorkspaceGit) Remotes(context.Context, string) ([]string, string, error) {
+	return nil, "", nil
 }
 
 func makeCopy(t *testing.T, root, rel string) {

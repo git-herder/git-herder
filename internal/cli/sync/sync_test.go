@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/git-herder/git-herder/internal/cli"
 	"github.com/git-herder/git-herder/internal/diag/console"
+	"github.com/git-herder/git-herder/internal/gitexec"
 	"github.com/git-herder/git-herder/internal/workspace"
 )
 
@@ -17,13 +19,43 @@ func install(t *testing.T, git gitOps) *[]string {
 	var lines []string
 	runner = git
 	printLine = func(s string) { lines = append(lines, s) }
+	restore := workspace.InstallGitForTest(syncWorkspaceGit{git: git})
 	t.Cleanup(func() {
+		restore()
 		runner = prevR
 		printLine = prevP
 		confirmMass = prevC
 		asPicker = prevPick
 	})
 	return &lines
+}
+
+// syncWorkspaceGit подставляет git-критерий OnBranch: ответы берутся из fakeGit.
+type syncWorkspaceGit struct {
+	git gitOps
+}
+
+func (s syncWorkspaceGit) VerifyQuiet(context.Context, string, string) (bool, gitexec.Result, error) {
+	return false, gitexec.Result{}, nil
+}
+
+func (s syncWorkspaceGit) SymbolicHead(ctx context.Context, dir string) (string, gitexec.Result, error) {
+	f, ok := s.git.(*fakeGit)
+	if !ok {
+		return "", gitexec.Result{}, nil
+	}
+	branch, detached, _, err := f.Head(ctx, dir)
+	if err != nil {
+		return "", gitexec.Result{}, err
+	}
+	if detached {
+		return "", gitexec.Result{Exit: 1}, nil
+	}
+	return branch, gitexec.Result{}, nil
+}
+
+func (s syncWorkspaceGit) Remotes(context.Context, string) ([]string, string, error) {
+	return nil, "", nil
 }
 
 func makeCopy(t *testing.T, root, rel string) {

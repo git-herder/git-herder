@@ -6,51 +6,25 @@ import (
 	"testing"
 
 	"github.com/git-herder/git-herder/internal/resolved"
+	"github.com/git-herder/git-herder/internal/workspace"
 )
 
 func TestGitHostOf(t *testing.T) {
 	t.Parallel()
-	got, err := gitHostOf("https://api.github.com")
+	got, err := workspace.HostOf("https://api.github.com")
 	if err != nil || got.Name != "github.com" || got.Port != "" {
 		t.Fatalf("%+v %v", got, err)
 	}
-	got, err = gitHostOf("https://gitlab.example:8443/api/v4")
+	got, err = workspace.HostOf("https://gitlab.example:8443/api/v4")
 	if err != nil || got.Name != "gitlab.example" || got.Port != "8443" {
 		t.Fatalf("%+v %v", got, err)
 	}
-	got, err = gitHostOf("https://ghe.example/api/v3")
+	got, err = workspace.HostOf("https://ghe.example/api/v3")
 	if err != nil || got.Name != "ghe.example" || got.Port != "" {
 		t.Fatalf("%+v %v", got, err)
 	}
-	if _, err = gitHostOf("://"); err == nil {
+	if _, err = workspace.HostOf("://"); err == nil {
 		t.Fatal("expected invalid host")
-	}
-}
-
-func TestRemoteHost(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		raw  string
-		name string
-		port string
-		ok   bool
-	}{
-		{"git@github.com:acme/api.git", "github.com", "", true},
-		{"https://github.com/acme/api.git", "github.com", "", true},
-		{"ssh://git@gitlab.example:8443/g/api.git", "gitlab.example", "8443", true},
-		{"https://x-access-token:secret@github.com/acme/api", "github.com", "", true},
-		{"not a url", "", "", false},
-	}
-	for _, tc := range cases {
-		got, ok := remoteHost(tc.raw)
-		if ok != tc.ok || got.Name != tc.name || got.Port != tc.port {
-			t.Fatalf("%q → %+v ok=%v", tc.raw, got, ok)
-		}
-	}
-	api, _ := gitHostOf("https://api.github.com")
-	gh, ok := remoteHost("git@github.com:acme/api.git")
-	if !ok || !sameHost(api, gh) {
-		t.Fatal("api.github.com must match github.com remotes")
 	}
 }
 
@@ -114,7 +88,7 @@ func TestDuplicateAndAddress(t *testing.T) {
 	if err := duplicateName([]placed{a, upper}); err == nil {
 		t.Fatal("expected case-insensitive duplicate")
 	}
-	host, err := gitHostOf("https://api.github.com")
+	host, err := workspace.HostOf("https://api.github.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,12 +100,12 @@ func TestDuplicateAndAddress(t *testing.T) {
 	if err != nil || httpsAddr != "https://x-access-token:secret@github.com/acme/a-b-c" {
 		t.Fatalf("%q %v", httpsAddr, err)
 	}
-	glHost := gitHost{Name: "gitlab.example", Port: "2222"}
+	glHost := workspace.Host{Name: "gitlab.example", Port: "2222"}
 	gl, err := remoteAddress(glHost, "group/sub/api", "ssh", resolved.UpstreamGitLab, "secret")
 	if err != nil || gl != "ssh://git@gitlab.example:2222/group/sub/api.git" {
 		t.Fatalf("%q %v", gl, err)
 	}
-	plain, err := remoteAddress(gitHost{Name: "gitlab.example"}, "group/api", "https", resolved.UpstreamGitLab, "secret")
+	plain, err := remoteAddress(workspace.Host{Name: "gitlab.example"}, "group/api", "https", resolved.UpstreamGitLab, "secret")
 	if err != nil || !strings.Contains(plain, "oauth2:secret@gitlab.example/group/api") {
 		t.Fatalf("%q %v", plain, err)
 	}

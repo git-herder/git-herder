@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/git-herder/git-herder/internal/workspace"
 )
 
 // Сквозной прогон publish: адаптеры SCM ходят в httptest, git подменён.
@@ -162,7 +164,11 @@ func stubRunner(t *testing.T) *fakeGit {
 	prev := runner
 	git := &fakeGit{head: "main", branches: map[string]bool{"main": true}}
 	runner = git
-	t.Cleanup(func() { runner = prev })
+	restore := workspace.InstallGitForTest(publishWorkspaceGit{git: git})
+	t.Cleanup(func() {
+		restore()
+		runner = prev
+	})
 	return git
 }
 

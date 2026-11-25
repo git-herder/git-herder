@@ -116,21 +116,14 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 	if statErr != nil || !st.IsDir() {
 		return fail(ui, fmt.Errorf("workspace %s is not a directory", g.Workspace))
 	}
-	copies, err := workspace.Resolve(workspace.Request{
-		Root:        g.Workspace,
-		QP:          settings.QP,
-		QN:          settings.QN,
-		Interactive: settings.Interactive,
-		Picker:      asPicker(ui),
-		Keep: func(c workspace.Copy) (bool, error) {
-			ok, output, err := runner.VerifyQuiet(context.Background(), c.Dir, "refs/heads/"+settings.From)
-			logOut(logf, output)
-			if err != nil {
-				return false, err
-			}
-			return ok, nil
-		},
-	})
+	copies, err := workspace.Resolve().
+		Workspace(g.Workspace).
+		Path(settings.QP...).
+		Name(settings.QN...).
+		HasBranch(settings.From).
+		Interactive(settings.Interactive).
+		Picker(asPicker(ui)).
+		Find(context.Background())
 	if errors.Is(err, workspace.ErrCancelled) {
 		return nil
 	}

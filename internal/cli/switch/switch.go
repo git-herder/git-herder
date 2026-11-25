@@ -84,25 +84,16 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 		}
 		rt.Trace.Logger("cli.switch").Info(redact.String(text), "reason", "git")
 	}
-	var keep workspace.Keep
+	resolver := workspace.Resolve().
+		Workspace(g.Workspace).
+		Path(settings.QP...).
+		Name(settings.QN...).
+		Interactive(settings.Interactive).
+		Picker(asPicker(ui))
 	if !settings.Create && !settings.ForceCreate {
-		keep = func(c workspace.Copy) (bool, error) {
-			ok, output, err := runner.VerifyQuiet(context.Background(), c.Dir, "refs/heads/"+settings.Branch)
-			logOut(logf, output)
-			if err != nil {
-				return false, err
-			}
-			return ok, nil
-		}
+		resolver = resolver.HasBranch(settings.Branch)
 	}
-	copies, err := workspace.Resolve(workspace.Request{
-		Root:        g.Workspace,
-		QP:          settings.QP,
-		QN:          settings.QN,
-		Interactive: settings.Interactive,
-		Picker:      asPicker(ui),
-		Keep:        keep,
-	})
+	copies, err := resolver.Find(context.Background())
 	if errors.Is(err, workspace.ErrCancelled) {
 		return nil
 	}

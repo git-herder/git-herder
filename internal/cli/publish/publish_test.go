@@ -1,6 +1,7 @@
 package publish
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,9 +9,11 @@ import (
 
 	"github.com/git-herder/git-herder/internal/cli"
 	"github.com/git-herder/git-herder/internal/diag/console"
+	"github.com/git-herder/git-herder/internal/gitexec"
 	"github.com/git-herder/git-herder/internal/scm"
 	"github.com/git-herder/git-herder/internal/scm/conn"
 	gh "github.com/git-herder/git-herder/internal/scm/github"
+	"github.com/git-herder/git-herder/internal/workspace"
 )
 
 func install(t *testing.T, git gitOps, repo scm.RepositoryCreator) *[]string {
@@ -19,15 +22,34 @@ func install(t *testing.T, git gitOps, repo scm.RepositoryCreator) *[]string {
 	var lines []string
 	runner = git
 	printLine = func(s string) { lines = append(lines, s) }
+	restore := workspace.InstallGitForTest(publishWorkspaceGit{git: git})
 	if repo != nil {
 		openCreator = func(conn.Config) (scm.RepositoryCreator, error) { return repo, nil }
 	}
 	t.Cleanup(func() {
+		restore()
 		runner = prevR
 		openCreator = prevC
 		printLine = prevP
 	})
 	return &lines
+}
+
+// publishWorkspaceGit подставляет git-критерий NoRemoteOnHost: ответы из fakeGit.
+type publishWorkspaceGit struct {
+	git gitOps
+}
+
+func (p publishWorkspaceGit) VerifyQuiet(context.Context, string, string) (bool, gitexec.Result, error) {
+	return false, gitexec.Result{}, nil
+}
+
+func (publishWorkspaceGit) SymbolicHead(context.Context, string) (string, gitexec.Result, error) {
+	return "", gitexec.Result{}, nil
+}
+
+func (p publishWorkspaceGit) Remotes(ctx context.Context, dir string) ([]string, string, error) {
+	return p.git.Remotes(ctx, dir)
 }
 
 func makeCopy(t *testing.T, root, rel string) {

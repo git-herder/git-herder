@@ -80,13 +80,13 @@ func Run(cmd *cobra.Command, tail []string, verb string, ui *console.UI) (err er
 	if statErr != nil || !st.IsDir() {
 		return fail(ui, fmt.Errorf("workspace %s is not a directory", g.Workspace))
 	}
-	copies, err := workspace.Resolve(workspace.Request{
-		Root:        g.Workspace,
-		QP:          settings.QP,
-		QN:          settings.QN,
-		Interactive: settings.Interactive,
-		Picker:      asPicker(ui),
-	})
+	copies, err := workspace.Resolve().
+		Workspace(g.Workspace).
+		Path(settings.QP...).
+		Name(settings.QN...).
+		Interactive(settings.Interactive).
+		Picker(asPicker(ui)).
+		Find(context.Background())
 	if errors.Is(err, workspace.ErrCancelled) {
 		return nil
 	}

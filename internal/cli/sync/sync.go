@@ -90,24 +90,14 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 		}
 		rt.Trace.Logger("cli.sync").Info(redact.String(text), "reason", "git")
 	}
-	copies, err := workspace.Resolve(workspace.Request{
-		Root:        g.Workspace,
-		QP:          settings.QP,
-		QN:          settings.QN,
-		Interactive: settings.Interactive,
-		Picker:      asPicker(ui),
-		Keep: func(c workspace.Copy) (bool, error) {
-			branch, detached, output, err := runner.Head(context.Background(), c.Dir)
-			logf(output)
-			if err != nil {
-				return false, err
-			}
-			if detached || branch != settings.Branch {
-				return false, nil
-			}
-			return true, nil
-		},
-	})
+	copies, err := workspace.Resolve().
+		Workspace(g.Workspace).
+		Path(settings.QP...).
+		Name(settings.QN...).
+		OnBranch(settings.Branch).
+		Interactive(settings.Interactive).
+		Picker(asPicker(ui)).
+		Find(context.Background())
 	if errors.Is(err, workspace.ErrCancelled) {
 		return nil
 	}

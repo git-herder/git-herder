@@ -1,8 +1,10 @@
 // Пакет workspace: GitWorkingCopiesResolver ищет рабочие копии в корне
-// --workspace и возвращает те, что прошли отбор.
+// --workspace, применяет --qp, --qn, критерии и интерактивный отбор.
+// Критерии накапливаются текучим API и исполняются через GitCliRunner.
 package workspace
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -27,57 +29,122 @@ func (c Copy) Path() string {
 	return filepath.Dir(c.Dir)
 }
 
-// Keep решает, остаётся ли копия в наборе.
-// false исключает копию. Ненулевая ошибка останавливает отбор.
-type Keep func(Copy) (bool, error)
-
 // Picker рисует интерактивный список. Метод совпадает с console.UI.Select.
 type Picker interface {
 	Select(items []console.SelectItem) ([]int, error)
 }
 
-// Request — уже собранные параметры одного вызова.
-type Request struct {
-	Root        string
-	QP          []string
-	QN          []string
-	Keep        Keep
-	Interactive bool
-	Picker      Picker
+// criterion — накопленный критерий: проверка одной копии в её каталоге.
+// false отбрасывает копию; ошибка останавливает отбор.
+type criterion func(ctx context.Context, c Copy) (bool, error)
+
+// Resolver накапливает условия отбора и исполняет их в Find.
+type Resolver struct {
+	root        string
+	paths       []string
+	names       []string
+	criteria    []criterion
+	interactive bool
+	picker      Picker
 }
 
 // ErrCancelled — пользователь нажал ESC.
 // Команда завершается с кодом 0 и не выполняет следующие шаги.
 var ErrCancelled = fmt.Errorf("selection cancelled: %w", console.ErrSelectCancelled)
 
-// Resolve обходит корень, применяет --qp и --qn, затем колбэк и интерактив.
-// Ошибка чтения, колбэка или недоступный терминал не сопровождается списком.
-// Пустой набор при включённом интерактиве не открывает экран.
-func Resolve(req Request) (out []Copy, err error) {
+// Resolve — точка входа текучего API: резолвер без аргументов.
+func Resolve() *Resolver {
+	return &Resolver{}
+}
+
+// Workspace задаёт абсолютный путь корня --workspace.
+func (r *Resolver) Workspace(absPath string) *Resolver {
+	r.root = absPath
+	return r
+}
+
+// Path добавляет повторяемые условия --qp на путь копии.
+func (r *Resolver) Path(qp ...string) *Resolver {
+	r.paths = append(r.paths, qp...)
+	return r
+}
+
+// Name добавляет повторяемые условия --qn на имя копии.
+func (r *Resolver) Name(qn ...string) *Resolver {
+	r.names = append(r.names, qn...)
+	return r
+}
+
+// Interactive включает интерактивный отбор после критериев.
+func (r *Resolver) Interactive(on bool) *Resolver {
+	r.interactive = on
+	return r
+}
+
+// Picker задаёт источник интерактивного списка. Вызывается только при Interactive.
+func (r *Resolver) Picker(p Picker) *Resolver {
+	r.picker = p
+	return r
+}
+
+// HasBranch оставляет копии с локальной веткой <branch>.
+// Отсутствие ветки — отсев, не ошибка.
+func (r *Resolver) HasBranch(branch string) *Resolver {
+	r.criteria = append(r.criteria, func(ctx context.Context, c Copy) (bool, error) {
+		return keepHasBranch(ctx, c.Dir, branch)
+	})
+	return r
+}
+
+// OnBranch оставляет копии, стоящие на ветке <branch> сейчас.
+// Отделённый HEAD и другая ветка — отсев, не ошибка.
+func (r *Resolver) OnBranch(branch string) *Resolver {
+	r.criteria = append(r.criteria, func(ctx context.Context, c Copy) (bool, error) {
+		return keepOnBranch(ctx, c.Dir, branch)
+	})
+	return r
+}
+
+// NoRemoteOnHost отбрасывает копии, у которых хоть один URL ремота
+// указывает на host. Совпадение hostname и порта — точное.
+func (r *Resolver) NoRemoteOnHost(host Host) *Resolver {
+	r.criteria = append(r.criteria, func(ctx context.Context, c Copy) (bool, error) {
+		return keepNoRemoteOnHost(ctx, c.Dir, host)
+	})
+	return r
+}
+
+// Find запускает обход, фильтры, критерии и интерактив и возвращает список.
+// Повторный вызов на том же резолвере контрактом не описан.
+func (r *Resolver) Find(ctx context.Context) (out []Copy, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	leave := logging.Enter(
-		"root", req.Root,
-		"qp", len(req.QP),
-		"qn", len(req.QN),
-		"interactive", req.Interactive,
+		"root", r.root,
+		"qp", len(r.paths),
+		"qn", len(r.names),
+		"criteria", len(r.criteria),
+		"interactive", r.interactive,
 	)
 	defer func() { leave("out", len(out), "err", err) }()
 
-	found, err := walk(req.Root)
+	found, err := walk(r.root)
 	if err != nil {
 		return nil, err
 	}
 	matched := make([]Copy, 0, len(found))
 	for _, c := range found {
-		if passFilters(c, req.QP, req.QN) {
+		if passFilters(c, r.paths, r.names) {
 			matched = append(matched, c)
 		}
 	}
-	kept, err := applyKeep(matched, req.Keep)
+	kept, err := applyCriteria(ctx, matched, r.criteria)
 	if err != nil {
 		return nil, err
 	}
-	if req.Interactive && len(kept) > 0 {
-		kept, err = pick(kept, req.Picker)
+	if r.interactive && len(kept) > 0 {
+		kept, err = pick(kept, r.picker)
 		if err != nil {
 			return nil, err
 		}
@@ -88,17 +155,26 @@ func Resolve(req Request) (out []Copy, err error) {
 	return kept, nil
 }
 
-func applyKeep(in []Copy, keep Keep) ([]Copy, error) {
-	if keep == nil {
+// applyCriteria прогоняет копии в порядке обнаружения.
+// Первый отбрасывающий критерий исключает копию, ошибка останавливает отбор.
+func applyCriteria(ctx context.Context, in []Copy, criteria []criterion) ([]Copy, error) {
+	if len(criteria) == 0 {
 		return in, nil
 	}
 	out := make([]Copy, 0, len(in))
 	for _, c := range in {
-		ok, err := keep(c)
-		if err != nil {
-			return nil, err
+		keep := true
+		for _, check := range criteria {
+			ok, err := check(ctx, c)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				keep = false
+				break
+			}
 		}
-		if ok {
+		if keep {
 			out = append(out, c)
 		}
 	}

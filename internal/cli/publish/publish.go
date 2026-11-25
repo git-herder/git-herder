@@ -131,7 +131,7 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 		ui.Error(err.Error())
 		return exit1(err)
 	}
-	host, err := gitHostOf(g.Host)
+	host, err := workspace.HostOf(g.Host)
 	if err != nil {
 		ui.Error(err.Error())
 		return exit1(err)
@@ -177,16 +177,14 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 		}
 		rt.Trace.Logger("cli.publish").Info(redact.String(text), "reason", "git")
 	}
-	copies, err := workspace.Resolve(workspace.Request{
-		Root:        g.Workspace,
-		QP:          settings.QP,
-		QN:          settings.QN,
-		Interactive: settings.Interactive,
-		Picker:      ui,
-		Keep: func(c workspace.Copy) (bool, error) {
-			return keepByRemote(context.Background(), c.Dir, host, logf)
-		},
-	})
+	copies, err := workspace.Resolve().
+		Workspace(g.Workspace).
+		Path(settings.QP...).
+		Name(settings.QN...).
+		NoRemoteOnHost(host).
+		Interactive(settings.Interactive).
+		Picker(ui).
+		Find(context.Background())
 	if errors.Is(err, workspace.ErrCancelled) {
 		return nil
 	}
@@ -266,21 +264,6 @@ func run(cmd *cobra.Command, args []string, ui *console.UI) (err error) {
 		return exit1(err)
 	}
 	return nil
-}
-
-func keepByRemote(ctx context.Context, dir string, host gitHost, logf func(string)) (bool, error) {
-	urls, out, err := runner.Remotes(ctx, dir)
-	logf(out)
-	if err != nil {
-		return false, err
-	}
-	for _, raw := range urls {
-		got, ok := remoteHost(raw)
-		if ok && sameHost(got, host) {
-			return false, nil
-		}
-	}
-	return true, nil
 }
 
 func retryPreflight(ctx context.Context, api preflightAPI, org, property string, retries int) error {

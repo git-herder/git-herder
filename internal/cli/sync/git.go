@@ -15,7 +15,6 @@ type gitOut struct {
 
 // gitOps — операции git в каталоге рабочей копии.
 type gitOps interface {
-	Head(ctx context.Context, dir string) (branch string, detached bool, output string, err error)
 	RemoteNames(ctx context.Context, dir string) (names []string, out gitOut, err error)
 	RemoteURL(ctx context.Context, dir, name string) (remoteURL string, missing bool, output string, err error)
 	LsRemoteHead(ctx context.Context, dir, remote, branch string, cfg []string) (oid string, found bool, out gitOut, err error)
@@ -27,10 +26,6 @@ type gitOps interface {
 }
 
 type execGit struct{}
-
-func (execGit) Head(ctx context.Context, dir string) (string, bool, string, error) {
-	return gitexec.HeadBranch(ctx, dir)
-}
 
 func (execGit) RemoteNames(ctx context.Context, dir string) ([]string, gitOut, error) {
 	names, res, err := gitexec.RemoteNames(ctx, dir)

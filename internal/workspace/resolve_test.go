@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -44,7 +45,7 @@ func TestWalkOrderAndStop(t *testing.T) {
 	}
 	makeRepo(t, filepath.Join(gitFile, "real"))
 
-	got, err := Resolve(Request{Root: root})
+	got, err := Resolve().Workspace(root).Find(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +64,7 @@ func TestRootGitIsOnlyCopy(t *testing.T) {
 	root := t.TempDir()
 	makeRepo(t, root)
 	makeRepo(t, filepath.Join(root, "other"))
-	got, err := Resolve(Request{Root: root + string(os.PathSeparator)})
+	got, err := Resolve().Workspace(root + string(os.PathSeparator)).Find(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +80,7 @@ func TestSymlinkDirIsNotDescended(t *testing.T) {
 		t.Skip(err)
 	}
 	makeRepo(t, filepath.Join(root, "real"))
-	got, err := Resolve(Request{Root: root})
+	got, err := Resolve().Workspace(root).Find(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,48 +95,47 @@ func TestFiltersAndRegexFallback(t *testing.T) {
 	makeRepo(t, filepath.Join(root, "selalpha", "selteam", "api2"))
 	makeRepo(t, filepath.Join(root, "selalpha", "selteam", "foo(bar"))
 
-	both, err := Resolve(Request{
-		Root: root,
-		QP:   []string{"selalpha", "selteam"},
-		QN:   []string{"^api$", "i"},
-	})
+	both, err := Resolve().
+		Workspace(root).
+		Path("selalpha", "selteam").
+		Name("^api$", "i").
+		Find(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertDirs(t, both, []string{filepath.Join(root, "selalpha", "selteam", "api")})
 
-	sub, err := Resolve(Request{Root: root, QN: []string{"("}})
+	sub, err := Resolve().Workspace(root).Name("(").Find(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertDirs(t, sub, []string{filepath.Join(root, "selalpha", "selteam", "foo(bar")})
 }
 
-func TestKeepDropsAndStops(t *testing.T) {
+func TestCriteriaDropsAndStops(t *testing.T) {
 	root := t.TempDir()
 	makeRepo(t, filepath.Join(root, "a"))
 	makeRepo(t, filepath.Join(root, "b"))
 	picker := &fakePicker{}
 
-	got, err := Resolve(Request{
-		Root: root,
-		Keep: func(c Copy) (bool, error) { return c.Name() == "b", nil },
-	})
+	got, err := Resolve().
+		Workspace(root).
+		Name("b").
+		Find(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertDirs(t, got, []string{filepath.Join(root, "b")})
 
 	calls := 0
-	got, err = Resolve(Request{
-		Root:        root,
-		Interactive: true,
-		Picker:      picker,
-		Keep: func(Copy) (bool, error) {
-			calls++
-			return false, errors.New("boom")
-		},
-	})
+	restore := InstallGitForTest(boomGit{onVerify: func() { calls++ }})
+	t.Cleanup(restore)
+	got, err = Resolve().
+		Workspace(root).
+		Interactive(true).
+		Picker(picker).
+		HasBranch("develop").
+		Find(context.Background())
 	if err == nil || err.Error() != "boom" || got != nil {
 		t.Fatalf("got %v err %v", got, err)
 	}
@@ -143,7 +143,7 @@ func TestKeepDropsAndStops(t *testing.T) {
 		t.Fatalf("calls %d", calls)
 	}
 	if picker.called {
-		t.Fatal("picker ran after keep error")
+		t.Fatal("picker ran after criterion error")
 	}
 }
 
@@ -154,7 +154,7 @@ func TestInteractive(t *testing.T) {
 	makeRepo(t, filepath.Join(root, "c"))
 
 	idle := &fakePicker{}
-	got, err := Resolve(Request{Root: root, Picker: idle})
+	got, err := Resolve().Workspace(root).Picker(idle).Find(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,18 +163,18 @@ func TestInteractive(t *testing.T) {
 	}
 
 	idle = &fakePicker{}
-	got, err = Resolve(Request{
-		Root:        root,
-		QN:          []string{"^missing$"},
-		Interactive: true,
-		Picker:      idle,
-	})
+	got, err = Resolve().
+		Workspace(root).
+		Name("^missing$").
+		Interactive(true).
+		Picker(idle).
+		Find(context.Background())
 	if err != nil || len(got) != 0 || idle.called {
 		t.Fatalf("got %v err %v called %v", got, err, idle.called)
 	}
 
 	pick := &fakePicker{idx: []int{0, 2}}
-	got, err = Resolve(Request{Root: root, Interactive: true, Picker: pick})
+	got, err = Resolve().Workspace(root).Interactive(true).Picker(pick).Find(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,35 +184,35 @@ func TestInteractive(t *testing.T) {
 	}
 
 	none := &fakePicker{idx: []int{}}
-	got, err = Resolve(Request{Root: root, Interactive: true, Picker: none})
+	got, err = Resolve().Workspace(root).Interactive(true).Picker(none).Find(context.Background())
 	if err != nil || len(got) != 0 {
 		t.Fatalf("empty enter got %v err %v", got, err)
 	}
 
 	cancel := &fakePicker{err: console.ErrSelectCancelled}
-	got, err = Resolve(Request{Root: root, Interactive: true, Picker: cancel})
+	got, err = Resolve().Workspace(root).Interactive(true).Picker(cancel).Find(context.Background())
 	if !errors.Is(err, ErrCancelled) || !errors.Is(err, console.ErrSelectCancelled) || got != nil {
 		t.Fatalf("got %v err %v", got, err)
 	}
 
 	unavailable := &fakePicker{err: errors.New("interactive input is not available")}
-	got, err = Resolve(Request{Root: root, Interactive: true, Picker: unavailable})
+	got, err = Resolve().Workspace(root).Interactive(true).Picker(unavailable).Find(context.Background())
 	if err == nil || errors.Is(err, ErrCancelled) || got != nil {
 		t.Fatalf("got %v err %v", got, err)
 	}
 
-	_, err = Resolve(Request{Root: root, Interactive: true})
+	_, err = Resolve().Workspace(root).Interactive(true).Find(context.Background())
 	if err == nil || err.Error() != "interactive picker is not set" {
 		t.Fatal(err)
 	}
 
 	bad := &fakePicker{idx: []int{-1}}
-	got, err = Resolve(Request{Root: root, Interactive: true, Picker: bad})
+	got, err = Resolve().Workspace(root).Interactive(true).Picker(bad).Find(context.Background())
 	if err == nil || got != nil {
 		t.Fatalf("got %v err %v", got, err)
 	}
 	bad.idx = []int{9}
-	got, err = Resolve(Request{Root: root, Interactive: true, Picker: bad})
+	got, err = Resolve().Workspace(root).Interactive(true).Picker(bad).Find(context.Background())
 	if err == nil || got != nil {
 		t.Fatalf("got %v err %v", got, err)
 	}
@@ -232,13 +232,13 @@ func TestReadDirErrorDropsPartial(t *testing.T) {
 		}
 		return os.ReadDir(name)
 	}
-	got, err := Resolve(Request{Root: root})
+	got, err := Resolve().Workspace(root).Find(context.Background())
 	if err == nil || !errors.Is(err, os.ErrPermission) || got != nil {
 		t.Fatalf("got %v err %v", got, err)
 	}
 
 	missing := filepath.Join(t.TempDir(), "missing")
-	got, err = Resolve(Request{Root: missing})
+	got, err = Resolve().Workspace(missing).Find(context.Background())
 	if err == nil || got != nil {
 		t.Fatalf("missing got %v err %v", got, err)
 	}
@@ -246,7 +246,7 @@ func TestReadDirErrorDropsPartial(t *testing.T) {
 
 func TestEmptyWorkspace(t *testing.T) {
 	text := captureStderr(t, func() {
-		got, err := Resolve(Request{Root: t.TempDir()})
+		got, err := Resolve().Workspace(t.TempDir()).Find(context.Background())
 		if err != nil || len(got) != 0 {
 			t.Fatalf("got %v err %v", got, err)
 		}
@@ -258,7 +258,7 @@ func TestEmptyWorkspace(t *testing.T) {
 	root := t.TempDir()
 	makeRepo(t, root)
 	text = captureStderr(t, func() {
-		got, err := Resolve(Request{Root: root})
+		got, err := Resolve().Workspace(root).Find(context.Background())
 		if err != nil || len(got) != 1 {
 			t.Fatalf("got %v err %v", got, err)
 		}
@@ -269,7 +269,7 @@ func TestEmptyWorkspace(t *testing.T) {
 
 	text = captureStderr(t, func() {
 		missing := filepath.Join(t.TempDir(), "missing")
-		if _, err := Resolve(Request{Root: missing}); err == nil {
+		if _, err := Resolve().Workspace(missing).Find(context.Background()); err == nil {
 			t.Fatal("expected read error")
 		}
 	})
