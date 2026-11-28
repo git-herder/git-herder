@@ -22,17 +22,22 @@ type Options struct {
 	Meter   Meter
 }
 
+// ErrObjectFailed — continue исчерпал повторы задания branches хотя бы у одной карточки.
+var ErrObjectFailed = errors.New("one or more repositories failed during selection")
+
 // Run выполняет отбор и возвращает карточки после клиентской фильтрации.
-// При --on-error=continue и ошибке страницы листинга результат пустой.
-func Run(ctx context.Context, f *factory.ClientFactory, cfg conn.Config, crit scm.Criteria, opt Options) (cards []card.Card, err error) {
+// objectFailed — при continue хотя бы одно задание branches исчерпало повторы:
+// такие карточки в набор не входят. При --on-error=continue и ошибке страницы
+// листинга результат пустой, objectFailed остаётся false.
+func Run(ctx context.Context, f *factory.ClientFactory, cfg conn.Config, crit scm.Criteria, opt Options) (cards []card.Card, objectFailed bool, err error) {
 	leave := logging.Enter("ctx", ctx, "host", cfg.Host, "upstream", cfg.Upstream, "search", crit.Search, "retries", opt.Retries, "onError", opt.OnError)
-	defer func() { leave("cards", cards, "err", err) }()
+	defer func() { leave("cards", cards, "objectFailed", objectFailed, "err", err) }()
 	if opt.Meter == nil {
 		opt.Meter = NopMeter{}
 	}
 	listing, jobs, err := f.Open(cfg, crit)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	policy := retrying.PolicyContinue
 	if opt.OnError == resolved.OnErrorAbort {
@@ -44,15 +49,23 @@ func Run(ctx context.Context, f *factory.ClientFactory, cfg conn.Config, crit sc
 	}
 	cards, err = listAll(ctx, listing, opt.Retries, policy, fatalList, opt.Meter, cfg.Upstream, crit)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	if len(cards) == 0 || len(jobs) == 0 {
-		return Filter(cfg.Upstream, cards, crit), nil
+	if crit.Search || len(cards) == 0 || len(jobs) == 0 {
+		if crit.Search {
+			return cards, false, nil
+		}
+		return Filter(cfg.Upstream, cards, crit), false, nil
 	}
-	if err := enrichAll(ctx, cards, jobs, opt.Retries, policy, opt.Meter); err != nil {
-		return nil, err
+	cards = filterEarly(cfg.Upstream, cards, crit, jobs)
+	if len(cards) == 0 {
+		return cards, false, nil
 	}
-	return Filter(cfg.Upstream, cards, crit), nil
+	cards, objectFailed, err = enrichAll(ctx, cards, jobs, opt.Retries, policy, opt.Meter)
+	if err != nil {
+		return nil, false, err
+	}
+	return filterLate(cfg.Upstream, cards, crit, jobs), objectFailed, nil
 }
 
 func listAll(ctx context.Context, listing scm.Listing, retries int, policy retrying.Policy, fatal func(error) bool, meter Meter, up resolved.Upstream, crit scm.Criteria) ([]card.Card, error) {
@@ -105,7 +118,7 @@ func listAll(ctx context.Context, listing scm.Listing, retries int, policy retry
 	return out, nil
 }
 
-func enrichAll(ctx context.Context, cards []card.Card, jobs []scm.Enricher, retries int, policy retrying.Policy, meter Meter) error {
+func enrichAll(ctx context.Context, cards []card.Card, jobs []scm.Enricher, retries int, policy retrying.Policy, meter Meter) ([]card.Card, bool, error) {
 	type pair struct {
 		idx int
 		job scm.Enricher
@@ -118,16 +131,36 @@ func enrichAll(ctx context.Context, cards []card.Card, jobs []scm.Enricher, retr
 	}
 	meter.Start("Enriching repositories", len(work))
 	defer meter.Stop()
+	branchFailed := map[int]bool{}
 	_, err := retrying.Execute(work, retries, policy, nil, func(p pair) error {
 		err := p.job.Apply(ctx, &cards[p.idx])
 		if err != nil {
+			if p.job.ID() == "branches" {
+				branchFailed[p.idx] = true
+			}
 			logging.Debug("enrich", "id", p.job.ID(), "fullName", cards[p.idx].FullName(), "err", err)
 			return err
+		}
+		if p.job.ID() == "branches" {
+			delete(branchFailed, p.idx)
 		}
 		meter.Advance()
 		return nil
 	})
-	return err
+	if err != nil {
+		return nil, false, err
+	}
+	if len(branchFailed) == 0 {
+		return cards, false, nil
+	}
+	out := make([]card.Card, 0, len(cards)-len(branchFailed))
+	for i, c := range cards {
+		if branchFailed[i] {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out, true, nil
 }
 
 func fatal403(err error) bool {

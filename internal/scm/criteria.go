@@ -37,6 +37,7 @@ type Criteria struct {
 	Names              []string
 	Tags               []TagFilter
 	Attrs              []AttrFilter
+	Branches           []string
 	Search             bool
 	SearchPairs        []SearchPair
 	Scope              resolved.SelectionScope
@@ -51,7 +52,7 @@ func (c Criteria) HasCriterion() bool {
 	if c.Search {
 		return true
 	}
-	return len(c.Paths)+len(c.Names)+len(c.Tags)+len(c.Attrs) > 0
+	return len(c.Paths)+len(c.Names)+len(c.Tags)+len(c.Attrs)+len(c.Branches) > 0
 }
 
 // GitHubHasQueryFragment — есть фрагмент для Search q (qp, qn или qa с =).
@@ -87,6 +88,31 @@ func (c Criteria) EqualAttrs() []NameValue {
 		}
 	}
 	return out
+}
+
+// ParseBranchNames снимает краевые пробелы и схлопывает повторы.
+// Пустое имя после обрезки — ошибка. nil и пустой срез — пустой набор без ошибки:
+// «ключ задан, но набор пуст» проверяет вызывающий резолв.
+func ParseBranchNames(raw []string) (names []string, err error) {
+	leave := logging.Enter("count", len(raw))
+	defer func() { leave("names", names, "err", err) }()
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		name := strings.TrimSpace(item)
+		if name == "" {
+			return nil, fmt.Errorf("invalid --has-branch %q", item)
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	return out, nil
 }
 
 // ParseTag разбирает одно значение --qt.
@@ -179,8 +205,8 @@ func (c *Criteria) ValidateShape(up resolved.Upstream) (err error) {
 	}
 	leave := logging.Enter("upstream", up, "search", search)
 	defer func() { leave("err", err) }()
-	if c.Search && (len(c.Paths)+len(c.Names)+len(c.Tags)+len(c.Attrs) > 0) {
-		return fmt.Errorf("scm-search cannot be combined with --qp, --qn, --qt, or --qa")
+	if c.Search && (len(c.Paths)+len(c.Names)+len(c.Tags)+len(c.Attrs)+len(c.Branches) > 0) {
+		return fmt.Errorf("scm-search cannot be combined with --qp, --qn, --qt, --qa, or --has-branch")
 	}
 	switch up {
 	case resolved.UpstreamGitHub:

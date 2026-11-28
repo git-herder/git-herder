@@ -17,6 +17,7 @@ func reportCmd() *cobra.Command {
 	fs.StringArray("qn", nil, "")
 	fs.StringArray("qt", nil, "")
 	fs.StringArray("qa", nil, "")
+	fs.StringArray("has-branch", nil, "")
 	fs.StringArray("scm-search", nil, "")
 	fs.String("scope", "", "")
 	fs.Bool("include-inactive", false, "")
@@ -95,6 +96,43 @@ func TestResolveReportFromArgvAndProfile(t *testing.T) {
 	if _, err := ResolveReport(cmd, map[string]any{"report": map[string]any{"qn": 1}}); err == nil {
 		t.Fatal("bad list")
 	}
+	cmd = reportCmd()
+	if err := cmd.ParseFlags([]string{"--has-branch", "  feature/foo-bar ", "--has-branch", "feature/foo-bar", "--has-branch", "release/1.2"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = ResolveReport(cmd, map[string]any{"report": map[string]any{"has-branch": "from-profile"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Criteria.Branches) != 2 || got.Criteria.Branches[0] != "feature/foo-bar" || got.Criteria.Branches[1] != "release/1.2" {
+		t.Fatalf("%#v", got.Criteria.Branches)
+	}
+	cmd = reportCmd()
+	got, err = ResolveReport(cmd, map[string]any{"report": map[string]any{"has-branch": "main"}})
+	if err != nil || len(got.Criteria.Branches) != 1 || got.Criteria.Branches[0] != "main" {
+		t.Fatalf("%v %#v", err, got.Criteria.Branches)
+	}
+	cmd = reportCmd()
+	got, err = ResolveReport(cmd, map[string]any{"report": map[string]any{"has-branch": []any{"a", "a", "b"}}})
+	if err != nil || len(got.Criteria.Branches) != 2 {
+		t.Fatalf("%v %#v", err, got.Criteria.Branches)
+	}
+	cmd = reportCmd()
+	if _, err := ResolveReport(cmd, map[string]any{"report": map[string]any{"has-branch": []any{}}}); err == nil {
+		t.Fatal("empty profile array")
+	}
+	cmd = reportCmd()
+	if err := cmd.ParseFlags([]string{"--has-branch", "  "}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ResolveReport(cmd, nil); err == nil {
+		t.Fatal("blank flag")
+	}
+	cmd = reportCmd()
+	if _, err := ResolveReport(cmd, nil); err != nil {
+		t.Fatal(err)
+	}
+
 	abs := filepath.Join(t.TempDir(), "r.json")
 	cmd = reportCmd()
 	if err := cmd.ParseFlags([]string{"--output", abs}); err != nil {

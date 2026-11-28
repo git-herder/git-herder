@@ -104,11 +104,44 @@ func TestValidateShape(t *testing.T) {
 	if !withEq.HasCriterion() || !withEq.GitHubHasQueryFragment() {
 		t.Fatal("criterion")
 	}
+	onlyBranch := Criteria{Branches: []string{"main"}}
+	if !onlyBranch.HasCriterion() || onlyBranch.GitHubHasQueryFragment() {
+		t.Fatal("has-branch is a criterion and not a search fragment")
+	}
+	conflict := Criteria{Search: true, Branches: []string{"main"}, SearchPairs: []SearchPair{{Key: "q", Value: "x"}}}
+	if err := conflict.ValidateShape(resolved.UpstreamGitHub); err == nil {
+		t.Fatal("has-branch conflicts with scm-search")
+	}
 	if len(Criteria{Tags: []TagFilter{{Name: "a"}, {Name: "b", Absent: true}}}.PresenceTags()) != 1 {
 		t.Fatal("presence")
 	}
 	if len(withEq.EqualAttrs()) != 1 {
 		t.Fatal("equals")
+	}
+}
+
+func TestParseBranchNames(t *testing.T) {
+	t.Parallel()
+	names, err := ParseBranchNames([]string{"  feature/foo-bar  ", "feature/foo-bar", "release/1.2", "a=b", "foo,bar"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(names) != 4 || names[0] != "feature/foo-bar" || names[1] != "release/1.2" || names[2] != "a=b" || names[3] != "foo,bar" {
+		t.Fatalf("%#v", names)
+	}
+	if _, err = ParseBranchNames([]string{"main", "  "}); err == nil {
+		t.Fatal("empty name")
+	}
+	if _, err = ParseBranchNames([]string{""}); err == nil {
+		t.Fatal("blank")
+	}
+	empty, err := ParseBranchNames(nil)
+	if err != nil || empty != nil {
+		t.Fatalf("%#v %v", empty, err)
+	}
+	kept, err := ParseBranchNames([]string{" foo bar "})
+	if err != nil || len(kept) != 1 || kept[0] != "foo bar" {
+		t.Fatalf("%#v %v", kept, err)
 	}
 }
 

@@ -74,6 +74,7 @@ type Card struct {
 	Description string         `json:"description"`
 	Labels      []string       `json:"labels"`
 	Properties  map[string]any `json:"properties"`
+	Branches    []string       `json:"branches"`
 }
 
 // EmptyProperties возвращает пустой объект properties.
@@ -105,6 +106,14 @@ func (c *Card) SetProperties(props map[string]any) {
 	c.Properties = props
 }
 
+// SetBranches полностью заменяет имена веток.
+func (c *Card) SetBranches(names []string) {
+	if names == nil {
+		names = []string{}
+	}
+	c.Branches = append([]string(nil), names...)
+}
+
 // Normalize заполняет nil-срезы, чтобы JSON не содержал null.
 func (c *Card) Normalize() {
 	if c.Labels == nil {
@@ -112,6 +121,9 @@ func (c *Card) Normalize() {
 	}
 	if c.Properties == nil {
 		c.Properties = EmptyProperties()
+	}
+	if c.Branches == nil {
+		c.Branches = []string{}
 	}
 }
 

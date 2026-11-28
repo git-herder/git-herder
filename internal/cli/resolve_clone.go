@@ -171,6 +171,10 @@ func resolveCriteria(flags *pflag.FlagSet, cmd *cobra.Command, doc map[string]an
 		}
 		out.Attrs = append(out.Attrs, attr)
 	}
+	out.Branches, err = resolveBranchNames(flags, cmd, doc, leaf)
+	if err != nil {
+		return out, err
+	}
 
 	searchRaw, searchSet, err := resolveSearch(flags, cmd, doc, leaf)
 	if err != nil {
@@ -225,6 +229,30 @@ func resolveCriteria(flags *pflag.FlagSet, cmd *cobra.Command, doc map[string]an
 		out.OnLimitSet = true
 	}
 	return out, nil
+}
+
+// resolveBranchNames читает --has-branch: argv целиком заменяет профиль.
+// Пустой набор при явно заданном ключе — ошибка разбора.
+func resolveBranchNames(flags interface {
+	Changed(string) bool
+	GetStringArray(string) ([]string, error)
+}, cmd *cobra.Command, doc map[string]any, leaf string) ([]string, error) {
+	raw, err := resolveStringList(flags, cmd, doc, leaf, "has-branch")
+	if err != nil {
+		return nil, err
+	}
+	set := flags.Changed("has-branch")
+	if !set {
+		_, set = lookupProfileValue(doc, cmd, leaf, "has-branch")
+	}
+	names, err := scm.ParseBranchNames(raw)
+	if err != nil {
+		return nil, err
+	}
+	if set && len(names) == 0 {
+		return nil, fmt.Errorf("invalid --has-branch")
+	}
+	return names, nil
 }
 
 // ValidateGitOpts запрещает аргументы git, которые подменяют каталог, адрес или учётные данные.

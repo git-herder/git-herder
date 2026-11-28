@@ -1,6 +1,7 @@
 package selection
 
 import (
+	"context"
 	"testing"
 
 	"github.com/git-herder/git-herder/internal/resolved"
@@ -53,4 +54,29 @@ func TestFilterGitHubAndGitLab(t *testing.T) {
 	if len(bad) != 0 {
 		t.Fatal("unknown op")
 	}
+	branched := []card.Card{
+		{Name: "api", Branches: []string{"main", "feature/foo"}},
+		{Name: "web", Branches: []string{"Main"}},
+	}
+	got := Filter(resolved.UpstreamGitHub, branched, scm.Criteria{Branches: []string{"feature/foo", "main"}})
+	if len(got) != 1 || got[0].Name != "api" {
+		t.Fatalf("%+v", got)
+	}
+	early := filterEarly(resolved.UpstreamGitLab, branched, scm.Criteria{
+		Names:    []string{"api"},
+		Branches: []string{"missing"},
+	}, []scm.Enricher{idJob("branches")})
+	if len(early) != 1 || early[0].Name != "api" {
+		t.Fatalf("early keeps name match before branches, %+v", early)
+	}
+	late := filterLate(resolved.UpstreamGitLab, early, scm.Criteria{Branches: []string{"missing"}}, []scm.Enricher{idJob("branches")})
+	if len(late) != 0 {
+		t.Fatal("late drops missing branch")
+	}
 }
+
+type idJob string
+
+func (j idJob) ID() string { return string(j) }
+
+func (idJob) Apply(context.Context, *card.Card) error { return nil }

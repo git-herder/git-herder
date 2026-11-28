@@ -47,6 +47,7 @@ func Register(root *cobra.Command) {
 	fs.StringArray("qn", nil, "Repository name criterion (repeatable)")
 	fs.StringArray("qt", nil, "Tag criterion (repeatable)")
 	fs.StringArray("qa", nil, "Attribute criterion (repeatable)")
+	fs.StringArray("has-branch", nil, "Repository branch criterion (repeatable)")
 	fs.StringArray("scm-search", nil, "SCM-native search (single flag, space-separated key=value pairs)")
 	fs.String("scope", "", "Enumeration scope: affiliated or all")
 	fs.Bool("include-inactive", false, "GitLab: include inactive projects")
@@ -125,7 +126,7 @@ func run(cmd *cobra.Command, ui *console.UI) (err error) {
 		}
 		ui.WarningStderr(name + " API rate limit reached; waiting until " + until.UTC().Format(time.RFC3339))
 	}
-	cards, err := selection.Run(context.Background(), factory.NewClientFactory(nil), cfg, settings.Criteria, selection.Options{
+	cards, objectFailed, err := selection.Run(context.Background(), factory.NewClientFactory(nil), cfg, settings.Criteria, selection.Options{
 		Retries: g.RetriesNumber,
 		OnError: g.OnError,
 		Meter:   &selection.PtermMeter{},
@@ -140,6 +141,10 @@ func run(cmd *cobra.Command, ui *console.UI) (err error) {
 		if rt.Trace != nil {
 			rt.Trace.Logger("cli.clone").Warn(msg)
 		}
+		if objectFailed {
+			ui.Error(selection.ErrObjectFailed.Error())
+			return exit1(selection.ErrObjectFailed)
+		}
 		return nil
 	}
 	if settings.Interactive {
@@ -149,6 +154,10 @@ func run(cmd *cobra.Command, ui *console.UI) (err error) {
 			return err
 		}
 		if len(cards) == 0 {
+			if objectFailed {
+				ui.Error(selection.ErrObjectFailed.Error())
+				return exit1(selection.ErrObjectFailed)
+			}
 			return nil
 		}
 	}
@@ -194,6 +203,10 @@ func run(cmd *cobra.Command, ui *console.UI) (err error) {
 		err := fmt.Errorf("one or more repositories were not cloned")
 		ui.Error(err.Error())
 		return exit1(err)
+	}
+	if objectFailed {
+		ui.Error(selection.ErrObjectFailed.Error())
+		return exit1(selection.ErrObjectFailed)
 	}
 	return nil
 }

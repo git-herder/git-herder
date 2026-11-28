@@ -166,12 +166,18 @@ func (f *ClientFactory) enrichers(t *scmhttp.Transport, cfg conn.Config, crit sc
 		if len(crit.Attrs) > 0 {
 			jobs = append(jobs, github.NewPropertiesEnricher(t, cfg.Host))
 		}
+		if len(crit.Branches) > 0 {
+			jobs = append(jobs, github.NewBranchesEnricher(t, cfg.Host, crit.Branches))
+		}
 	case resolved.UpstreamGitLab:
 		if len(crit.Tags) > 0 {
 			jobs = append(jobs, gitlab.NewLabelsEnricher(t, cfg.Host))
 		}
 		if len(crit.Attrs) > 0 {
 			jobs = append(jobs, gitlab.NewPropertiesEnricher(t, cfg.Host))
+		}
+		if len(crit.Branches) > 0 {
+			jobs = append(jobs, gitlab.NewBranchesEnricher(t, cfg.Host, crit.Branches))
 		}
 	}
 	return jobs

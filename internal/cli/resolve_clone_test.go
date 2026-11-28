@@ -16,6 +16,7 @@ func cloneCmd() *cobra.Command {
 	fs.StringArray("qn", nil, "")
 	fs.StringArray("qt", nil, "")
 	fs.StringArray("qa", nil, "")
+	fs.StringArray("has-branch", nil, "")
 	fs.StringArray("scm-search", nil, "")
 	fs.String("scope", "", "")
 	fs.Bool("include-inactive", false, "")

@@ -45,6 +45,7 @@ func MapSearchItem(raw json.RawMessage) (card.Card, error) {
 		Description: desc,
 		Labels:      append([]string(nil), labels...),
 		Properties:  card.EmptyProperties(),
+		Branches:    []string{},
 	}, nil
 }
 

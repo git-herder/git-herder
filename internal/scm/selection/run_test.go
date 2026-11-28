@@ -33,7 +33,7 @@ func TestRunGitLabEnrichAndFilter(t *testing.T) {
 		Tags:  []scm.TagFilter{{Name: "secret", Absent: true}},
 		Attrs: []scm.AttrFilter{{Key: "tier", Op: ">=", Value: "gold"}},
 	}
-	cards, err := Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorAbort, Meter: NopMeter{}})
+	cards, _, err := Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorAbort, Meter: NopMeter{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestRunGitLabEnrichAndFilter(t *testing.T) {
 		t.Fatalf("secret label should exclude, %+v", cards)
 	}
 	crit.Tags = []scm.TagFilter{{Name: "keep"}}
-	cards, err = Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorAbort})
+	cards, _, err = Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorAbort})
 	if err != nil || len(cards) != 1 || cards[0].Labels[0] != "keep" {
 		t.Fatalf("%+v %v", cards, err)
 	}
@@ -58,11 +58,11 @@ func TestRunContinueAndForbidden(t *testing.T) {
 	f := factory.NewClientFactoryWithClient(srv.Client())
 	cfg := conn.Config{Upstream: resolved.UpstreamGitLab, Host: srv.URL, Token: "t"}
 	crit := scm.Criteria{Names: []string{"a"}}
-	cards, err := Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorContinue, Meter: NopMeter{}})
+	cards, _, err := Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorContinue, Meter: NopMeter{}})
 	if err != nil || len(cards) != 0 {
 		t.Fatalf("continue cards=%d err=%v", len(cards), err)
 	}
-	cards, err = Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorAbort, Meter: NopMeter{}})
+	cards, _, err = Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorAbort, Meter: NopMeter{}})
 	if err == nil || cards != nil {
 		t.Fatal("expected abort")
 	}
@@ -74,7 +74,7 @@ func TestRunContinueAndForbidden(t *testing.T) {
 	f = factory.NewClientFactoryWithClient(forbidden.Client())
 	cfg.Host = forbidden.URL
 	cfg.Upstream = resolved.UpstreamGitHub
-	_, err = Run(context.Background(), f, cfg, scm.Criteria{Names: []string{"code"}}, Options{Retries: 0, OnError: resolved.OnErrorContinue})
+	_, _, err = Run(context.Background(), f, cfg, scm.Criteria{Names: []string{"code"}}, Options{Retries: 0, OnError: resolved.OnErrorContinue})
 	if err == nil || !strings.Contains(err.Error(), "403") {
 		t.Fatalf("%v", err)
 	}
@@ -91,7 +91,7 @@ func TestRunGitHubSearch(t *testing.T) {
 	f := factory.NewClientFactoryWithClient(srv.Client())
 	cfg := conn.Config{Upstream: resolved.UpstreamGitHub, Host: srv.URL, Token: "t", OnLimit: "abort"}
 	crit := scm.Criteria{Search: true, SearchPairs: []scm.SearchPair{{Key: "q", Value: "org"}}}
-	cards, err := Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorAbort, Meter: &PtermMeter{}})
+	cards, _, err := Run(context.Background(), f, cfg, crit, Options{Retries: 0, OnError: resolved.OnErrorAbort, Meter: &PtermMeter{}})
 	if err != nil || len(cards) == 0 {
 		t.Fatalf("cards=%d err=%v", len(cards), err)
 	}
