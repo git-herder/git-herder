@@ -94,6 +94,8 @@ func TestMergeValidation(t *testing.T) {
 		{"--workspace", ws, "merge", "feature", ""},
 		{"--workspace", ws, "merge", "feature", "feature"},
 		{"--workspace", ws, "merge", "feature", "main", "--git-merge-opts=--abort"},
+		{"--workspace", ws, "merge", "feature", "main", "--no-fetch", "--remote="},
+		{"--workspace", ws, "merge", "feature", "main", "--no-fetch", "--git-fetch-opts=--abort"},
 	}
 	for _, args := range cases {
 		if err := runCmd(t, args...); err == nil {
@@ -138,6 +140,28 @@ func TestMergeDefaultBranchFilterAndPrecheck(t *testing.T) {
 	}
 	if git.defaults != 1 || len(*lines) != 1 || git.switchReqs[len(git.switchReqs)-1].Target != "master" {
 		t.Fatalf("defaults %d lines %v reqs %+v", git.defaults, *lines, git.switchReqs)
+	}
+}
+
+func TestMergeNoFetchSkipsFetch(t *testing.T) {
+	t.Setenv("GITHERD_PROFILE_DIR", t.TempDir())
+	git := &fakeGit{
+		entryBranch:    "other",
+		afterBranch:    "main",
+		oidAfterSwitch: "aaa",
+		oidAfterMerge:  "bbb",
+		fetchExit:      1,
+		fetchStderr:    "network",
+	}
+	lines := install(t, git)
+	ws := t.TempDir()
+	makeCopy(t, ws, "documentation/architecture")
+	err := runCmd(t, "--workspace", ws, "merge", "feature", "main", "--no-fetch", "--git-fetch-opts=--prune")
+	if err != nil || git.fetches != 0 || len(*lines) != 1 {
+		t.Fatalf("err %v fetches %d lines %v", err, git.fetches, *lines)
+	}
+	if (*lines)[0] != "➡️ ✔️ ✔️ ✔️ ➡️ documentation/architecture" {
+		t.Fatalf("%q", (*lines)[0])
 	}
 }
 

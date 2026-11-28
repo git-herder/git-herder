@@ -22,6 +22,7 @@ type MergeSettings struct {
 	All         bool
 	Stay        bool
 	KeepSource  bool
+	NoFetch     bool
 	GitOpts     []string
 	FetchOpts   []string
 	SwitchOpts  []string
@@ -40,6 +41,7 @@ func ResolveMerge(cmd *cobra.Command, args []string, doc map[string]any) (out Me
 			"remote", out.Remote,
 			"stay", out.Stay,
 			"keep", out.KeepSource,
+			"noFetch", out.NoFetch,
 			"err", err,
 		)
 	}()
@@ -97,6 +99,10 @@ func ResolveMerge(cmd *cobra.Command, args []string, doc map[string]any) (out Me
 		return out, err
 	}
 	out.KeepSource, err = resolveBoolFlag(flags, "keep-source-branch", cmd, doc, leaf)
+	if err != nil {
+		return out, err
+	}
+	out.NoFetch, err = resolveBoolFlag(flags, "no-fetch", cmd, doc, leaf)
 	if err != nil {
 		return out, err
 	}

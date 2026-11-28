@@ -16,6 +16,7 @@ func mergeCmd() *cobra.Command {
 	fs.BoolP("all", "A", false, "")
 	fs.BoolP("stay", "s", false, "")
 	fs.BoolP("keep-source-branch", "k", false, "")
+	fs.Bool("no-fetch", false, "")
 	fs.StringArray("git-opts", nil, "")
 	fs.StringArray("git-fetch-opts", nil, "")
 	fs.StringArray("git-switch-opts", nil, "")
@@ -84,6 +85,28 @@ func TestResolveMergeCLIListReplacesProfile(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 	if len(got.MergeOpts) != 1 || got.MergeOpts[0] != "--ff-only" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestResolveMergeNoFetch(t *testing.T) {
+	cmd := mergeCmd()
+	doc := map[string]any{"merge": map[string]any{"no-fetch": true, "from": "feature"}}
+	got, err := ResolveMerge(cmd, []string{"feature"}, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.NoFetch {
+		t.Fatalf("%+v", got)
+	}
+	if err := cmd.ParseFlags([]string{"--no-fetch=false"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = ResolveMerge(cmd, []string{"feature"}, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.NoFetch {
 		t.Fatalf("%+v", got)
 	}
 }

@@ -147,6 +147,35 @@ func TestMergeOptsAndToken(t *testing.T) {
 	}
 }
 
+func TestMergeNoFetch(t *testing.T) {
+	s := sample()
+	s.NoFetch = true
+	s.GitOpts = []string{"--quiet"}
+	s.FetchOpts = []string{"--prune"}
+	git := &fakeGit{
+		entryBranch:    "other",
+		afterBranch:    "main",
+		oidAfterSwitch: "aaa",
+		oidAfterMerge:  "bbb",
+		remoteURL:      "https://github.com/acme/api.git",
+		fetchExit:      1,
+		fetchStderr:    "network",
+	}
+	auth := authNone()
+	auth.Token = "sekret"
+	auth.Upstream = "github"
+	res := handleMerge(context.Background(), "dir", s, auth, git, nil, nil, "copy")
+	if git.fetches != 0 || len(git.switchReqs) != 1 || git.merges != 1 {
+		t.Fatalf("fetches %d switches %d merges %d", git.fetches, len(git.switchReqs), git.merges)
+	}
+	if res.signs[0] != signSame || len(res.notes) != 0 || res.failed() {
+		t.Fatalf("%v %v", res.signs, res.notes)
+	}
+	if len(git.lastFetch) != 0 || len(git.lastCfg) != 0 {
+		t.Fatalf("opts %v cfg %v", git.lastFetch, git.lastCfg)
+	}
+}
+
 func authNone() gitexec.HTTPSAuth {
 	return gitexec.HTTPSAuth{}
 }

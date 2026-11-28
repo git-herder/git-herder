@@ -45,6 +45,7 @@ func Register(root *cobra.Command) {
 	fs.BoolP("all", "A", false, "Do not ask for confirmation above the mass threshold")
 	fs.BoolP("stay", "s", false, "Return to the entry branch after a successful merge")
 	fs.BoolP("keep-source-branch", "k", false, "Keep the local source branch after a successful merge")
+	fs.Bool("no-fetch", false, "Do not fetch the remote before the merge")
 	fs.StringArray("git-opts", nil, "One git argument per repeat, added to every handler call")
 	fs.StringArray("git-fetch-opts", nil, "One git fetch argument per repeat")
 	fs.StringArray("git-switch-opts", nil, "One git switch argument per repeat")

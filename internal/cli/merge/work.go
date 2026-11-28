@@ -63,33 +63,37 @@ func handleMerge(ctx context.Context, dir string, s cli.MergeSettings, auth gite
 		return prechecked(note)
 	}
 
-	cfg, err := fetchConfig(ctx, dir, s.Remote, auth, git, logf)
-	if err != nil {
-		return at(0, "fetch failed")
-	}
-	if steps != nil {
-		steps.Start("fetch", label, 1)
-	}
-	fout, ferr := git.Fetch(ctx, dir, cfg, joinOpts(s.GitOpts, s.FetchOpts), s.Remote)
-	if steps != nil {
-		steps.Stop()
-	}
-	logOut(logf, fout)
-	if ferr != nil {
-		return at(0, shortReason(fout, "fetch failed"))
+	fetchSign := signSame
+	if !s.NoFetch {
+		cfg, err := fetchConfig(ctx, dir, s.Remote, auth, git, logf)
+		if err != nil {
+			return at(0, "fetch failed")
+		}
+		if steps != nil {
+			steps.Start("fetch", label, 1)
+		}
+		fout, ferr := git.Fetch(ctx, dir, cfg, joinOpts(s.GitOpts, s.FetchOpts), s.Remote)
+		if steps != nil {
+			steps.Stop()
+		}
+		logOut(logf, fout)
+		if ferr != nil {
+			return at(0, shortReason(fout, "fetch failed"))
+		}
+		fetchSign = signOK
 	}
 
 	swReq := gitexec.SwitchRequest{Opts: joinOpts(s.GitOpts, s.SwitchOpts), Target: s.To}
 	sout, serr := git.Switch(ctx, dir, swReq)
 	logOut(logf, sout)
 	if serr != nil {
-		return placed(signOK, signFail, signSkip, signSkip, signSkip, shortReason(sout, "switch failed"))
+		return placed(fetchSign, signFail, signSkip, signSkip, signSkip, shortReason(sout, "switch failed"))
 	}
 	name, nout, nerr := git.SymbolicHead(ctx, dir)
 	logOut(logf, nout)
 	changed := detached || name != entryBranch
 	if nerr != nil {
-		res := placed(signOK, signFail, signSkip, signSkip, signSkip, "working copy check failed")
+		res := placed(fetchSign, signFail, signSkip, signSkip, signSkip, "working copy check failed")
 		ret, note := restore(ctx, dir, s, detached, entryBranch, entryOID, git, logf)
 		res.signs[4] = ret
 		if note != "" {
@@ -104,7 +108,7 @@ func handleMerge(ctx context.Context, dir string, s cli.MergeSettings, auth gite
 	headAfter, missing, hout, herr := git.HeadCommit(ctx, dir)
 	logOut(logf, hout)
 	if herr != nil || missing {
-		res := placed(signOK, signFail, signSkip, signSkip, signSkip, "working copy check failed")
+		res := placed(fetchSign, signFail, signSkip, signSkip, signSkip, "working copy check failed")
 		if changed {
 			ret, note := restore(ctx, dir, s, detached, entryBranch, entryOID, git, logf)
 			res.signs[4] = ret
@@ -125,13 +129,13 @@ func handleMerge(ctx context.Context, dir string, s cli.MergeSettings, auth gite
 	logOut(logf, mout)
 	pending, files, cerr := mergePending(ctx, git, dir, logf)
 	if cerr != nil {
-		return placed(signOK, swSign, signFail, signSkip, signSkip, "working copy check failed")
+		return placed(fetchSign, swSign, signFail, signSkip, signSkip, "working copy check failed")
 	}
 	if pending {
-		return placed(signOK, swSign, signConflict, signSkip, signSkip, conflictNote(files))
+		return placed(fetchSign, swSign, signConflict, signSkip, signSkip, conflictNote(files))
 	}
 	if merr != nil {
-		res := placed(signOK, swSign, signFail, signSkip, signSkip, shortReason(mout, "merge failed"))
+		res := placed(fetchSign, swSign, signFail, signSkip, signSkip, shortReason(mout, "merge failed"))
 		if changed {
 			ret, note := restore(ctx, dir, s, detached, entryBranch, entryOID, git, logf)
 			res.signs[4] = ret
@@ -146,13 +150,13 @@ func handleMerge(ctx context.Context, dir string, s cli.MergeSettings, auth gite
 	now, missing, aout, aerr := git.HeadCommit(ctx, dir)
 	logOut(logf, aout)
 	if aerr != nil || missing {
-		return placed(signOK, swSign, signFail, signSkip, signSkip, "working copy check failed")
+		return placed(fetchSign, swSign, signFail, signSkip, signSkip, "working copy check failed")
 	}
 	mergeSign := signSame
 	if now != headAfter {
 		mergeSign = signOK
 	}
-	return postMerge(ctx, dir, s, detached, entryBranch, entryOID, swSign, mergeSign, git, logf)
+	return postMerge(ctx, dir, s, detached, entryBranch, entryOID, fetchSign, swSign, mergeSign, git, logf)
 }
 
 func rememberEntry(ctx context.Context, dir string, git gitOps, logf func(string)) (branch string, detached bool, oid, stop string) {
@@ -214,7 +218,7 @@ func guardCopy(ctx context.Context, dir string, git gitOps, logf func(string)) (
 	return "", true
 }
 
-func postMerge(ctx context.Context, dir string, s cli.MergeSettings, detached bool, entryBranch, entryOID, swSign, mergeSign string, git gitOps, logf func(string)) copyResult {
+func postMerge(ctx context.Context, dir string, s cli.MergeSettings, detached bool, entryBranch, entryOID, fetchSign, swSign, mergeSign string, git gitOps, logf func(string)) copyResult {
 	remain := s.To
 	if s.Stay {
 		if detached {
@@ -243,7 +247,7 @@ func postMerge(ctx context.Context, dir string, s cli.MergeSettings, detached bo
 			notes = append(notes, note)
 		}
 	}
-	res := placed(signOK, swSign, mergeSign, del, ret)
+	res := placed(fetchSign, swSign, mergeSign, del, ret)
 	res.notes = notes
 	return res
 }
